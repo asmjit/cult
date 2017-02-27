@@ -25,7 +25,6 @@ public:
   JSONBuilder& addBool(bool b) noexcept;
   JSONBuilder& addInt(int64_t n) noexcept;
   JSONBuilder& addUInt(uint64_t n) noexcept;
-  JSONBuilder& addUIntHex(uint64_t n, uint32_t width = 0) noexcept;
   JSONBuilder& addDouble(double d) noexcept;
   JSONBuilder& addDoublef(const char* fmt, double d) noexcept;
   JSONBuilder& addString(const char* str) noexcept;

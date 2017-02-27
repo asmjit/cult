@@ -11,7 +11,7 @@ CPU Ultimate Latency Test.
 Introduction
 ------------
 
-CULT (**CPU Ultimate Latency Test**) is a tool that runs series of tests to calculate how many cycles an X86 processor (either in 32-bit or 64-bit mode) takes to execute each supported instruction. The tool should help people that use x86 assembler for JIT compilation or to hand-optimize certain functions; and for compiler writers that target X86 architecture.
+CULT (**CPU Ultimate Latency Test**) is a tool that runs series of tests to estimate how many cycles an X86 processor (either in 32-bit or 64-bit mode) takes to execute each supported instruction. The tool should help people that use x86 assembler for JIT compilation or to hand-optimize certain functions; and for compiler writers that target X86 architecture.
 
 The purpose of CULT is to benchmark as many CPUs as possible and to index the results and make them searchable and comparable online. This information can be then used for various purposes, like statistics about average latencies of certain instructions (like addition, multiplication, and division) of modern CPUs compared to their predecessors, or as a comparison between various CPU generations for people that still write hand-written assembly to optimize cerain functions. The output of CULT is JSON for making the results easier to be processed by third party tools.
 
@@ -80,12 +80,12 @@ The JSON document has the following structure:
   // Array of CPUID results.
   "cpuid": [
     {
-      "level"  : Number,        // CPUID:EAX input (main leaf).
-      "subleaf": Number,        // CPUID:ECX input (sub leaf).
-      "eax"    : Number,        // CPUID:EAX output.
-      "ebx"    : Number,        // CPUID:EBX output.
-      "ecx"    : Number,        // CPUID:ECX output.
-      "edx"    : Number         // CPUID:EDX output.
+      "level"  : "HEX",         // CPUID:EAX input (main leaf).
+      "subleaf": "HEX",         // CPUID:ECX input (sub leaf).
+      "eax"    : "HEX",         // CPUID:EAX output.
+      "ebx"    : "HEX",         // CPUID:EBX output.
+      "ecx"    : "HEX",         // CPUID:ECX output.
+      "edx"    : "HEX"          // CPUID:EDX output.
     }
     ...
   ],

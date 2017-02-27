@@ -195,12 +195,12 @@ void CpuInfo::onCpuInfo(const CpuidIn& in, const CpuidOut& out) {
   JSONBuilder& json = _app->json();
   json.beforeRecord()
       .openObject()
-      .addKey("level").addUIntHex(in.eax, 8)
-      .addKey("subleaf").addUIntHex(in.ecx, 8)
-      .addKey("eax").addUIntHex(out.eax, 8)
-      .addKey("ebx").addUIntHex(out.ebx, 8)
-      .addKey("ecx").addUIntHex(out.ecx, 8)
-      .addKey("edx").addUIntHex(out.edx, 8)
+      .addKey("level").addStringf("%08X", in.eax)
+      .addKey("subleaf").addStringf("%08X", in.ecx)
+      .addKey("eax").addStringf("%08X", out.eax)
+      .addKey("ebx").addStringf("%08X", out.ebx)
+      .addKey("ecx").addStringf("%08X", out.ecx)
+      .addKey("edx").addStringf("%08X", out.edx)
       .closeObject();
 }
 

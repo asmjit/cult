@@ -84,17 +84,6 @@ JSONBuilder& JSONBuilder::addUInt(uint64_t n) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addUIntHex(uint64_t n, uint32_t width) noexcept {
-  if (_last == kTokenValue)
-    _dst->appendChar(',');
-
-  _dst->appendString("0x");
-  _dst->appendUInt(n, 16, width);
-  _last = kTokenValue;
-
-  return *this;
-}
-
 JSONBuilder& JSONBuilder::addDouble(double d) noexcept {
   if (_last == kTokenValue)
     _dst->appendChar(',');

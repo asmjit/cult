@@ -255,7 +255,8 @@ void BenchCycles::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
       dst.append(heap, InstSpec::pack(0));
     }
 
-    if (instId == X86Inst::kIdDiv) {
+    if (instId == X86Inst::kIdDiv ||
+        instId == X86Inst::kIdIdiv) {
       dst.append(heap, InstSpec::pack(InstSpec::kOpAx, InstSpec::kOpCl));
       dst.append(heap, InstSpec::pack(InstSpec::kOpDx, InstSpec::kOpAx, InstSpec::kOpCx));
       dst.append(heap, InstSpec::pack(InstSpec::kOpEdx, InstSpec::kOpEax, InstSpec::kOpEcx));
