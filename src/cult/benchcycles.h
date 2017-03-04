@@ -92,8 +92,26 @@ public:
 
   bool isImplicit(uint32_t instId) noexcept;
   bool isAvailable(uint32_t instId) noexcept;
-
   uint32_t getNumIters(uint32_t instId) noexcept;
+
+  inline bool isMMX(uint32_t instId, InstSpec spec) noexcept {
+    return spec.get(0) == InstSpec::kOpMm || spec.get(1) == InstSpec::kOpMm;
+  }
+
+  inline bool isVec(uint32_t instId, InstSpec spec) noexcept {
+    const X86Inst& inst = X86Inst::getInst(instId);
+    return inst.isVec() && !isMMX(instId, spec);
+  }
+
+  inline bool isSSE(uint32_t instId, InstSpec spec) noexcept {
+    const X86Inst& inst = X86Inst::getInst(instId);
+    return inst.isVec() && !isMMX(instId, spec) && !inst.isVex() && !inst.isEvex();
+  }
+
+  inline bool isAVX(uint32_t instId, InstSpec spec) noexcept {
+    const X86Inst& inst = X86Inst::getInst(instId);
+    return inst.isVec() && (inst.isVex() || inst.isEvex());
+  }
 
   inline bool isValid(uint32_t instId, const Operand_& op0) const noexcept {
     Operand extraOp;

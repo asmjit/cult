@@ -16,10 +16,11 @@ endif()
 
 include("${CULT_DIR}/CxxProject.cmake")
 cxx_project(cult)
+cxx_detect_standard(CULT_PRIVATE_CFLAGS)
 
 include("${ASMJIT_DIR}/CMakeLists.txt")
 list(APPEND CULT_DEPS ${ASMJIT_LIBS})
-list(APPEND CULT_PRIVATE_CFLAGS ${ASMJIT_CFLAGS} "-Wall")
+list(APPEND CULT_PRIVATE_CFLAGS ${ASMJIT_CFLAGS})
 
 list(REMOVE_DUPLICATES CULT_DEPS)
 list(REMOVE_DUPLICATES CULT_PRIVATE_CFLAGS)

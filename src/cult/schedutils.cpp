@@ -4,7 +4,7 @@ namespace cult {
 
 #if defined(_WIN32)
 void SchedUtils::setAffinity(uint32_t cpu) {
-  SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)cpu);
+  SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)(1 << cpu));
 }
 #else
 void SchedUtils::setAffinity(uint32_t cpu) {

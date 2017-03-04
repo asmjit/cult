@@ -33,6 +33,7 @@ static bool isSafeGp(uint32_t instId) {
          instId == X86Inst::kIdDec     ||
          instId == X86Inst::kIdImul    ||
          instId == X86Inst::kIdInc     ||
+         instId == X86Inst::kIdLzcnt   ||
          instId == X86Inst::kIdMov     ||
          instId == X86Inst::kIdMovbe   ||
          instId == X86Inst::kIdNeg     ||
@@ -143,7 +144,10 @@ static double roundResult(double x) noexcept {
   double n = static_cast<double>(static_cast<int>(x));
   double f = x - n;
 
-  if (f <= 0.12)
+  // Ceil if the number of cycles is greater than 50.
+  if (n >= 50.0)
+    f = (f > 0.12) ? 1.0 : 0.0;
+  else if (f <= 0.12)
     f = 0.00;
   else if (f <= 0.22)
     f = n > 1.0 ? 0.00 : 0.20;
@@ -157,6 +161,7 @@ static double roundResult(double x) noexcept {
     f = 0.66;
   else
     f = 1.00;
+
 
   return n + f;
 }
@@ -192,6 +197,12 @@ void BenchCycles::run() {
 
     ZoneVector<InstSpec> specs;
     classify(specs, instId);
+
+    /*
+    if (specs.getLength() == 0) {
+      printf("MISSING SPEC: %s\n", X86Inst::getNameById(instId));
+    }
+    */
 
     for (size_t i = 0; i < specs.getLength(); i++) {
       InstSpec instSpec = specs[i];
@@ -237,6 +248,39 @@ void BenchCycles::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
 
   ZoneHeap* heap = &_app->_heap;
 
+  // Handle special cases.
+  if (instId == X86Inst::kIdCpuid    ||
+      instId == X86Inst::kIdEmms     ||
+      instId == X86Inst::kIdFemms    ||
+      instId == X86Inst::kIdLfence   ||
+      instId == X86Inst::kIdMfence   ||
+      instId == X86Inst::kIdRdtsc    ||
+      instId == X86Inst::kIdRdtscp   ||
+      instId == X86Inst::kIdSfence   ||
+      instId == X86Inst::kIdVzeroall ||
+      instId == X86Inst::kIdVzeroupper) {
+    dst.append(heap, InstSpec::pack(0));
+    return;
+  }
+
+  if (instId == X86Inst::kIdLea) {
+    dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd));
+    dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm8));
+    dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm32));
+    dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd));
+    dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm8));
+    dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm32));
+
+    if (is64Bit()) {
+      dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq));
+      dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm8));
+      dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm32));
+      dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq));
+      dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm8));
+      dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm32));
+    }
+  }
+
   // Handle instructions that uses implicit register(s) here.
   if (isImplicit(instId)) {
     if (instId == X86Inst::kIdBlendvpd ||
@@ -244,15 +288,6 @@ void BenchCycles::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
         instId == X86Inst::kIdSha256rnds2 ||
         instId == X86Inst::kIdPblendvb) {
       dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm0));
-    }
-
-    if (instId == X86Inst::kIdCpuid  ||
-        instId == X86Inst::kIdLfence ||
-        instId == X86Inst::kIdMfence ||
-        instId == X86Inst::kIdRdtsc  ||
-        instId == X86Inst::kIdRdtscp ||
-        instId == X86Inst::kIdSfence) {
-      dst.append(heap, InstSpec::pack(0));
     }
 
     if (instId == X86Inst::kIdDiv ||
@@ -334,6 +369,10 @@ void BenchCycles::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
   if (isValid(instId, x86::xmm3, x86::xmm5, x86::xmm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
   if (isValid(instId, x86::ymm3, x86::ymm5, x86::xmm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
   if (isValid(instId, x86::ymm3, x86::ymm5, x86::ymm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
+
+  if (isValid(instId, x86::xmm3, x86::xmm5, x86::xmm2, x86::xmm6)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm));
+  if (isValid(instId, x86::ymm3, x86::ymm5, x86::ymm2, x86::ymm6)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm));
+
 }
 
 bool BenchCycles::isImplicit(uint32_t instId) noexcept {
@@ -435,7 +474,9 @@ double BenchCycles::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t
 }
 
 void BenchCycles::beforeBody(X86Assembler& a) {
-
+  if (isVec(_instId, _instSpec)) {
+    // TODO: Need to know if the instruction works with ints/floats/doubles.
+  }
 }
 
 void BenchCycles::compileBody(X86Assembler& a, X86Gp rCnt) {
@@ -605,7 +646,10 @@ void BenchCycles::compileBody(X86Assembler& a, X86Gp rCnt) {
             a.emit(X86Inst::kIdMov, x86::eax, 133);
         }
 
-        a.emit(instId, o0[n], o1[n]);
+        if (instId == X86Inst::kIdLea)
+          a.emit(instId, o0[n], x86::ptr(o1[n].as<X86Gp>()));
+        else
+          a.emit(instId, o0[n], o1[n]);
       }
       break;
     }
@@ -625,14 +669,22 @@ void BenchCycles::compileBody(X86Assembler& a, X86Gp rCnt) {
             a.emit(X86Inst::kIdMov, x86::eax, 4123456789);
         }
 
-        a.emit(instId, o0[n], o1[n], o2[n]);
+        if (instId == X86Inst::kIdLea && o2[n].isReg())
+          a.emit(instId, o0[n], x86::ptr(o1[n].as<X86Gp>(), o2[n].as<X86Gp>()));
+        else if (instId == X86Inst::kIdLea && o2[n].isImm())
+          a.emit(instId, o0[n], x86::ptr(o1[n].as<X86Gp>(), o2[n].as<Imm>().getInt32()));
+        else
+          a.emit(instId, o0[n], o1[n], o2[n]);
       }
       break;
     }
 
     case 4: {
       for (uint32_t n = 0; n < _nUnroll; n++) {
-        a.emit(instId, o0[n], o1[n], o2[n], o3[n]);
+        if (instId == X86Inst::kIdLea)
+          a.emit(instId, o0[n], x86::ptr(o1[n].as<X86Gp>(), o2[n].as<X86Gp>(), 0, o3[n].as<Imm>().getInt32()));
+        else
+          a.emit(instId, o0[n], o1[n], o2[n], o3[n]);
       }
       break;
     }
@@ -649,10 +701,8 @@ void BenchCycles::compileBody(X86Assembler& a, X86Gp rCnt) {
 }
 
 void BenchCycles::afterBody(X86Assembler& a) {
-  if (_instSpec.get(0) == InstSpec::kOpMm ||
-      _instSpec.get(1) == InstSpec::kOpMm) {
+  if (isMMX(_instId, _instSpec))
     a.emms();
-  }
 }
 
 } // cult namespace
