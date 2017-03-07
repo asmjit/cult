@@ -443,7 +443,7 @@ double BenchCycles::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t
 
   uint64_t localWorse = cycles;
 
-  uint64_t nAcceptThreshold = cycles / 256;
+  uint64_t nAcceptThreshold = cycles / 512;
   uint64_t nSimilarThreshold = cycles / 1024;
 
   uint32_t nSimilar = 0;
@@ -458,7 +458,7 @@ double BenchCycles::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t
       }
 
       cycles = local;
-      nAcceptThreshold = cycles / 256;
+      nAcceptThreshold = cycles / 512;
       nSimilarThreshold = cycles / 1024;
 
       // printf("Best: %u: %u\n", i, (unsigned int)cycles);
