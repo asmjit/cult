@@ -666,7 +666,7 @@ void BenchCycles::compileBody(X86Assembler& a, X86Gp rCnt) {
           else if (n % 3 == 0)
             a.emit(X86Inst::kIdAdd, x86::eax, 133);
           else if (isParallel)
-            a.emit(X86Inst::kIdMov, x86::eax, 4123456789);
+            a.emit(X86Inst::kIdMov, x86::eax, static_cast<int64_t>(123456789));
         }
 
         if (instId == X86Inst::kIdLea && o2[n].isReg())
