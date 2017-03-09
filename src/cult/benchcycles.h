@@ -91,7 +91,7 @@ public:
   }
 
   bool isImplicit(uint32_t instId) noexcept;
-  bool isAvailable(uint32_t instId) noexcept;
+
   uint32_t getNumIters(uint32_t instId) noexcept;
 
   inline bool isMMX(uint32_t instId, InstSpec spec) noexcept {
@@ -113,29 +113,34 @@ public:
     return inst.isVec() && (inst.isVex() || inst.isEvex());
   }
 
-  inline bool isValid(uint32_t instId, const Operand_& op0) const noexcept {
-    Operand extraOp;
-    Operand_ ops[] = { op0 };
-    return X86Inst::validate(asmjit::ArchInfo::kTypeHost, instId, 0, extraOp, ops, static_cast<uint32_t>(ASMJIT_ARRAY_SIZE(ops))) == asmjit::kErrorOk;
+  inline bool canRun(uint32_t instId) const noexcept {
+    return _canRun(Inst::Detail(instId), nullptr, 0);
   }
 
-  inline bool isValid(uint32_t instId, const Operand_& op0, const Operand_& op1) const noexcept {
+  inline bool canRun(uint32_t instId, const Operand_& op0) const noexcept {
+    Operand_ ops[] = { op0 };
+    return _canRun(Inst::Detail(instId), ops, 1);
+  }
+
+  inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1) const noexcept {
     Operand extraOp;
     Operand_ ops[] = { op0, op1 };
-    return X86Inst::validate(asmjit::ArchInfo::kTypeHost, instId, 0, extraOp, ops, static_cast<uint32_t>(ASMJIT_ARRAY_SIZE(ops))) == asmjit::kErrorOk;
+    return _canRun(Inst::Detail(instId), ops, 2);
   }
 
-  inline bool isValid(uint32_t instId, const Operand_& op0, const Operand_& op1, const Operand_& op2) const noexcept {
+  inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1, const Operand_& op2) const noexcept {
     Operand extraOp;
     Operand_ ops[] = { op0, op1, op2 };
-    return X86Inst::validate(asmjit::ArchInfo::kTypeHost, instId, 0, extraOp, ops, static_cast<uint32_t>(ASMJIT_ARRAY_SIZE(ops))) == asmjit::kErrorOk;
+    return _canRun(Inst::Detail(instId), ops, 3);
   }
 
-  inline bool isValid(uint32_t instId, const Operand_& op0, const Operand_& op1, const Operand_& op2, const Operand_& op3) const noexcept {
+  inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1, const Operand_& op2, const Operand_& op3) const noexcept {
     Operand extraOp;
     Operand_ ops[] = { op0, op1, op2, op3 };
-    return X86Inst::validate(asmjit::ArchInfo::kTypeHost, instId, 0, extraOp, ops, static_cast<uint32_t>(ASMJIT_ARRAY_SIZE(ops))) == asmjit::kErrorOk;
+    return _canRun(Inst::Detail(instId), ops, 4);
   }
+
+  bool _canRun(const Inst::Detail& detail, const Operand_* operands, uint32_t count) const noexcept;
 
   void run() override;
   void beforeBody(X86Assembler& a) override;

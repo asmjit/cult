@@ -33,6 +33,9 @@ using asmjit::StringBuilderTmp;
 
 using asmjit::Operand;
 using asmjit::Operand_;
+
+using asmjit::Inst;
+
 using asmjit::X86Gp;
 using asmjit::X86Reg;
 using asmjit::X86Inst;

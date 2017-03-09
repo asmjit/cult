@@ -162,7 +162,6 @@ static double roundResult(double x) noexcept {
   else
     f = 1.00;
 
-
   return n + f;
 }
 
@@ -192,9 +191,6 @@ void BenchCycles::run() {
 
 
   for (uint32_t instId = 1; instId < X86Inst::_kIdCount; instId++) {
-    if (!isAvailable(instId))
-      continue;
-
     ZoneVector<InstSpec> specs;
     classify(specs, instId);
 
@@ -259,7 +255,8 @@ void BenchCycles::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
       instId == X86Inst::kIdSfence   ||
       instId == X86Inst::kIdVzeroall ||
       instId == X86Inst::kIdVzeroupper) {
-    dst.append(heap, InstSpec::pack(0));
+    if (canRun(instId))
+      dst.append(heap, InstSpec::pack(0));
     return;
   }
 
@@ -287,7 +284,8 @@ void BenchCycles::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
         instId == X86Inst::kIdBlendvps ||
         instId == X86Inst::kIdSha256rnds2 ||
         instId == X86Inst::kIdPblendvb) {
-      dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm0));
+      if (canRun(instId, x86::xmm2, x86::xmm1, x86::xmm0))
+        dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm0));
     }
 
     if (instId == X86Inst::kIdDiv ||
@@ -304,75 +302,74 @@ void BenchCycles::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
   }
 
   if (isSafeGp(instId)) {
-    if (isValid(instId, x86::bl)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpb));
-    if (isValid(instId, x86::bx)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpw));
-    if (isValid(instId, x86::ebx)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpd));
-    if (isValid(instId, x86::rbx)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpq));
+    if (canRun(instId, x86::bl)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpb));
+    if (canRun(instId, x86::bx)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpw));
+    if (canRun(instId, x86::ebx)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpd));
+    if (canRun(instId, x86::rbx)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpq));
 
-    if (isValid(instId, x86::bl, x86::al))
+    if (canRun(instId, x86::bl, x86::al))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpb, InstSpec::kOpGpb));
 
-    if (isValid(instId, x86::bl, imm(6)))
+    if (canRun(instId, x86::bl, imm(6)))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpb, InstSpec::kOpImm8));
 
-    if (isValid(instId, x86::bx, x86::di))
+    if (canRun(instId, x86::bx, x86::di))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpGpw));
 
-    if (isValid(instId, x86::bx, imm(10000)))
+    if (canRun(instId, x86::bx, imm(10000)))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpImm16));
-    else if (isValid(instId, x86::bx, imm(10)))
+    else if (canRun(instId, x86::bx, imm(10)))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpImm8));
 
-    if (isValid(instId, x86::ebx, x86::edi))
+    if (canRun(instId, x86::ebx, x86::edi))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd));
 
-    if (isValid(instId, x86::ebx, imm(100000)))
+    if (canRun(instId, x86::ebx, imm(100000)))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpImm32));
-    else if (isValid(instId, x86::ebx, imm(10)))
+    else if (canRun(instId, x86::ebx, imm(10)))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpImm8));
 
-    if (isValid(instId, x86::rbx, x86::rdi))
+    if (canRun(instId, x86::rbx, x86::rdi))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq));
 
-    if (isValid(instId, x86::rbx, imm(100000)))
+    if (canRun(instId, x86::rbx, imm(100000)))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpImm32));
-    else if (isValid(instId, x86::rbx, imm(10)))
+    else if (canRun(instId, x86::rbx, imm(10)))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpImm8));
 
-    if (isValid(instId, x86::rbx, imm(10000000000ull)))
+    if (canRun(instId, x86::rbx, imm(10000000000ull)))
       dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpImm64));
 
-    if (isValid(instId, x86::bl, x86::dl, x86::al)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpb, InstSpec::kOpGpb, InstSpec::kOpGpb));
-    if (isValid(instId, x86::bx, x86::di, x86::si)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpGpw, InstSpec::kOpGpw));
-    if (isValid(instId, x86::ebx, x86::edi, x86::esi)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd));
-    if (isValid(instId, x86::rbx, x86::rdi, x86::rsi)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq));
+    if (canRun(instId, x86::bl, x86::dl, x86::al)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpb, InstSpec::kOpGpb, InstSpec::kOpGpb));
+    if (canRun(instId, x86::bx, x86::di, x86::si)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpGpw, InstSpec::kOpGpw));
+    if (canRun(instId, x86::ebx, x86::edi, x86::esi)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd));
+    if (canRun(instId, x86::rbx, x86::rdi, x86::rsi)) dst.append(heap, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq));
   }
 
-  if (isValid(instId, x86::mm1, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpImm8));
-  if (isValid(instId, x86::mm1, x86::mm2)) dst.append(heap, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpMm));
-  if (isValid(instId, x86::mm1, x86::mm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpMm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::mm1, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::mm1, x86::mm2)) dst.append(heap, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpMm));
+  if (canRun(instId, x86::mm1, x86::mm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpMm, InstSpec::kOpImm8));
 
-  if (isValid(instId, x86::xmm3, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (isValid(instId, x86::xmm3, x86::xmm5)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm));
-  if (isValid(instId, x86::xmm3, x86::ymm5)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpYmm));
-  if (isValid(instId, x86::ymm3, x86::xmm5)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpXmm));
-  if (isValid(instId, x86::ymm3, x86::ymm5)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm));
+  if (canRun(instId, x86::xmm3, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::xmm3, x86::xmm5)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm));
+  if (canRun(instId, x86::xmm3, x86::ymm5)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpYmm));
+  if (canRun(instId, x86::ymm3, x86::xmm5)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpXmm));
+  if (canRun(instId, x86::ymm3, x86::ymm5)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm));
 
-  if (isValid(instId, x86::xmm3, x86::xmm5, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (isValid(instId, x86::xmm3, x86::ymm5, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
-  if (isValid(instId, x86::ymm3, x86::xmm5, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (isValid(instId, x86::ymm3, x86::ymm5, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
-  if (isValid(instId, x86::xmm3, x86::xmm5, x86::xmm2)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm));
-  if (isValid(instId, x86::ymm3, x86::ymm5, x86::xmm2)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpXmm));
-  if (isValid(instId, x86::ymm3, x86::ymm5, x86::ymm2)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm));
+  if (canRun(instId, x86::xmm3, x86::xmm5, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::xmm3, x86::ymm5, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::ymm3, x86::xmm5, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::ymm3, x86::ymm5, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::xmm3, x86::xmm5, x86::xmm2)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm));
+  if (canRun(instId, x86::ymm3, x86::ymm5, x86::xmm2)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpXmm));
+  if (canRun(instId, x86::ymm3, x86::ymm5, x86::ymm2)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm));
 
-  if (isValid(instId, x86::xmm3, x86::xmm5, x86::xmm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (isValid(instId, x86::ymm3, x86::ymm5, x86::xmm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (isValid(instId, x86::ymm3, x86::ymm5, x86::ymm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::xmm3, x86::xmm5, x86::xmm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::ymm3, x86::ymm5, x86::xmm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
+  if (canRun(instId, x86::ymm3, x86::ymm5, x86::ymm2, imm(1))) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
 
-  if (isValid(instId, x86::xmm3, x86::xmm5, x86::xmm2, x86::xmm6)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm));
-  if (isValid(instId, x86::ymm3, x86::ymm5, x86::ymm2, x86::ymm6)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm));
-
+  if (canRun(instId, x86::xmm3, x86::xmm5, x86::xmm2, x86::xmm6)) dst.append(heap, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm));
+  if (canRun(instId, x86::ymm3, x86::ymm5, x86::ymm2, x86::ymm6)) dst.append(heap, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm));
 }
 
 bool BenchCycles::isImplicit(uint32_t instId) noexcept {
@@ -390,28 +387,23 @@ bool BenchCycles::isImplicit(uint32_t instId) noexcept {
   return false;
 }
 
-bool BenchCycles::isAvailable(uint32_t instId) noexcept {
-  if (instId == X86Inst::kIdNone)
+bool BenchCycles::_canRun(const Inst::Detail& detail, const Operand_* operands, uint32_t count) const noexcept {
+  using namespace asmjit;
+
+  if (detail.instId == X86Inst::kIdNone)
     return false;
 
-  const X86Inst& inst = X86Inst::getInst(instId);
-  const X86Inst::OperationData& od = inst.getOperationData();
+  if (Inst::validate(ArchInfo::kTypeHost, detail, operands, count) != kErrorOk)
+    return false;
 
-  const uint8_t* fData = od.getFeaturesData();
-  const uint8_t* fEnd = od.getFeaturesEnd();
+  CpuFeatures featuresRequired;
+  if (Inst::checkFeatures(ArchInfo::kTypeHost, detail, operands, count, featuresRequired) != kErrorOk)
+    return false;
 
-  bool hasFeatures = fData[0] == 0;
+  if (!_cpuInfo.getFeatures().hasAll(featuresRequired))
+    return false;
 
-  if (fData != fEnd) {
-    while (fData != fEnd) {
-      uint32_t feature = fData[0];
-      if (feature && _cpuInfo.hasFeature(feature))
-        hasFeatures = true;
-      fData++;
-    }
-  }
-
-  return hasFeatures;
+  return true;
 }
 
 uint32_t BenchCycles::getNumIters(uint32_t instId) noexcept {
@@ -443,8 +435,8 @@ double BenchCycles::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t
 
   uint64_t localWorse = cycles;
 
-  uint64_t nAcceptThreshold = cycles / 512;
-  uint64_t nSimilarThreshold = cycles / 1024;
+  uint64_t nAcceptThreshold = cycles / 1024;
+  uint64_t nSimilarThreshold = cycles / 2048;
 
   uint32_t nSimilar = 0;
   for (uint32_t i = 0; i < 1000000; i++) {
@@ -458,8 +450,8 @@ double BenchCycles::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t
       }
 
       cycles = local;
-      nAcceptThreshold = cycles / 512;
-      nSimilarThreshold = cycles / 1024;
+      nAcceptThreshold = cycles / 1024;
+      nSimilarThreshold = cycles / 2048;
 
       // printf("Best: %u: %u\n", i, (unsigned int)cycles);
     }
