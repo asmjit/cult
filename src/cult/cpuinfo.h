@@ -1,5 +1,5 @@
-#ifndef _CULT_CPUID_H
-#define _CULT_CPUID_H
+#ifndef _CULT_CPUINFO_H
+#define _CULT_CPUINFO_H
 
 #include "./app.h"
 #include "./jsonbuilder.h"
@@ -35,4 +35,4 @@ public:
 
 } // cult namespace
 
-#endif // _CULT_CPUID_H
+#endif // _CULT_CPUINFO_H
