@@ -2,7 +2,7 @@
 
 namespace cult {
 
-JSONBuilder::JSONBuilder(StringBuilder* dst) noexcept
+JSONBuilder::JSONBuilder(String* dst) noexcept
   : _dst(dst),
     _last(kTokenNone),
     _level(0) {}
@@ -18,10 +18,15 @@ JSONBuilder& JSONBuilder::openArray() noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::closeArray() noexcept {
+JSONBuilder& JSONBuilder::closeArray(bool nl) noexcept {
+  _level--;
+  if (nl) {
+    _dst->appendChar('\n');
+    _dst->appendChars(' ', _level * 2);
+  }
+
   _dst->appendChar(']');
   _last = kTokenValue;
-  _level--;
 
   return *this;
 }
@@ -37,11 +42,15 @@ JSONBuilder& JSONBuilder::openObject() noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::closeObject() noexcept {
+JSONBuilder& JSONBuilder::closeObject(bool nl) noexcept {
+  _level--;
+  if (nl) {
+    _dst->appendChar('\n');
+    _dst->appendChars(' ', _level * 2);
+  }
+
   _dst->appendChar('}');
   _last = kTokenValue;
-  _level--;
-
   return *this;
 }
 
@@ -119,7 +128,7 @@ JSONBuilder& JSONBuilder::addStringf(const char* fmt, ...) noexcept {
   va_start(ap, fmt);
 
   _dst->appendChar('\"');
-  _dst->appendFormatVA(fmt, ap);
+  _dst->appendVFormat(fmt, ap);
   _dst->appendChar('\"');
   _last = kTokenValue;
 
@@ -129,14 +138,14 @@ JSONBuilder& JSONBuilder::addStringf(const char* fmt, ...) noexcept {
 }
 
 JSONBuilder& JSONBuilder::alignTo(size_t n) noexcept {
-  size_t i = _dst->getLength();
-  const char* p = _dst->getData();
+  size_t i = _dst->size();
+  const char* p = _dst->data();
 
   while (i)
     if (p[--i] == '\n')
       break;
 
-  size_t cur = _dst->getLength() - i;
+  size_t cur = _dst->size() - i;
   if (cur < n)
     _dst->appendChars(' ', n - cur);
 

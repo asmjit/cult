@@ -6,5 +6,5 @@ set ASMJIT_DIR="../../asmjit"
 
 mkdir ..\%BUILD_DIR%
 cd ..\%BUILD_DIR%
-cmake .. -G"Visual Studio 14 Win64" -DASMJIT_DIR="%ASMJIT_DIR%"
+cmake .. -G"Visual Studio 15 Win64" -D"ASMJIT_DIR=%ASMJIT_DIR%"
 cd %CURRENT_DIR%

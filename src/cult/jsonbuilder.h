@@ -7,18 +7,18 @@ namespace cult {
 
 class JSONBuilder {
 public:
-  enum Token {
+  enum Token : uint32_t {
     kTokenNone  = 0,
     kTokenValue = 1
   };
 
-  JSONBuilder(StringBuilder* dst) noexcept;
+  JSONBuilder(String* dst) noexcept;
 
   JSONBuilder& openArray() noexcept;
-  JSONBuilder& closeArray() noexcept;
+  JSONBuilder& closeArray(bool nl = false) noexcept;
 
   JSONBuilder& openObject() noexcept;
-  JSONBuilder& closeObject() noexcept;
+  JSONBuilder& closeObject(bool nl = false) noexcept;
 
   JSONBuilder& addKey(const char* str) noexcept;
 
@@ -36,7 +36,7 @@ public:
   JSONBuilder& nl() { _dst->appendChar('\n'); return *this; }
   JSONBuilder& indent() { _dst->appendChars(' ', _level); return *this; }
 
-  StringBuilder* _dst;
+  String* _dst;
   uint32_t _last;
   uint32_t _level;
 };

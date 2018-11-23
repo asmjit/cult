@@ -11,20 +11,20 @@ namespace cult {
 
 class CmdLine {
 public:
-  CmdLine(int argc, const char* const* argv)
+  CmdLine(int argc, const char* const* argv) noexcept
     : argc(argc),
       argv(argv) {}
 
-  bool hasKey(const char* key) const {
+  bool hasKey(const char* key) const noexcept {
     for (int i = 0; i < argc; i++)
       if (::strcmp(argv[i], key) == 0)
         return true;
     return false;
   }
 
-  const char* getKey(const char* key) const {
-    size_t keyLen = ::strlen(key);
-    size_t argLen = 0;
+  const char* valueOf(const char* key) const noexcept {
+    size_t keySize = ::strlen(key);
+    size_t argSize = 0;
 
     const char* arg = NULL;
     for (int i = 0; i <= argc; i++) {
@@ -32,15 +32,15 @@ public:
         return NULL;
 
       arg = argv[i];
-      argLen = ::strlen(arg);
-      if (argLen >= keyLen && ::memcmp(arg, key, keyLen) == 0)
+      argSize = ::strlen(arg);
+      if (argSize >= keySize && ::memcmp(arg, key, keySize) == 0)
         break;
     }
 
-    if (argLen > keyLen && arg[keyLen] == '=')
-      return arg + keyLen + 1;
+    if (argSize > keySize && arg[keySize] == '=')
+      return arg + keySize + 1;
     else
-      return arg + keyLen;
+      return arg + keySize;
   }
 
   int argc;
@@ -52,6 +52,9 @@ public:
   App(int argc, char* argv[]) noexcept;
   ~App() noexcept;
 
+  inline const CmdLine& cmdLine() const noexcept { return _cmd; }
+  inline ZoneAllocator* allocator() const noexcept { return const_cast<ZoneAllocator*>(&_allocator); }
+
   inline bool verbose() const noexcept { return _verbose; }
   inline bool dump() const noexcept { return _dump; }
   inline JSONBuilder& json() noexcept { return _json; }
@@ -60,13 +63,13 @@ public:
 
   CmdLine _cmd;
   Zone _zone;
-  ZoneHeap _heap;
+  ZoneAllocator _allocator;
 
   bool _verbose;
   bool _round;
   bool _dump;
 
-  StringBuilder _output;
+  String _output;
   JSONBuilder _json;
 };
 

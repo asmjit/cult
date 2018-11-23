@@ -2,16 +2,15 @@ cmake_minimum_required(VERSION 3.1)
 
 project(cult C CXX)
 
-set(CULT_DIR   "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH "CpuPerf directory")
+set(CULT_DIR   "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH "CULT directory")
 set(ASMJIT_DIR "${CULT_DIR}/../asmjit"     CACHE PATH "Location of 'asmjit'")
 
-if(NOT DEFINED ASMJIT_EMBED)
-  set(ASMJIT_EMBED TRUE)
-  set(ASMJIT_STATIC TRUE)
+if(NOT DEFINED ASMJIT_BUILD_EMBED)
+  set(ASMJIT_BUILD_EMBED TRUE)
 endif()
 
 # =============================================================================
-# [CpuPerf - Project]
+# [CULT - Project]
 # =============================================================================
 
 include("${CULT_DIR}/CxxProject.cmake")
@@ -28,7 +27,7 @@ list(REMOVE_DUPLICATES CULT_PRIVATE_CFLAGS)
 cxx_project_info(cult)
 
 # =============================================================================
-# [CpuPerf - Source]
+# [CULT - Source]
 # =============================================================================
 
 set(CULT_SRC "")
@@ -36,13 +35,13 @@ set(CULT_SRC "")
 cxx_add_source(cult CULT_SRC cult
   app.cpp
   app.h
-  benchbase.cpp
-  benchbase.h
-  benchcycles.cpp
-  benchcycles.h
-  cpuinfo.cpp
-  cpuinfo.h
+  basebench.cpp
+  basebench.h
+  cpudetect.cpp
+  cpudetect.h
   globals.h
+  instbench.cpp
+  instbench.h
   jsonbuilder.cpp
   jsonbuilder.h
   schedutils.cpp
@@ -50,7 +49,7 @@ cxx_add_source(cult CULT_SRC cult
 )
 
 # =============================================================================
-# [CpuPerf - Targets]
+# [CULT - Targets]
 # =============================================================================
 
 add_executable(cult ${CULT_SRC} ${ASMJIT_SRC})

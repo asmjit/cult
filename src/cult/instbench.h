@@ -1,7 +1,7 @@
-#ifndef _CULT_BENCHCYCLES_H
-#define _CULT_BENCHCYCLES_H
+#ifndef _CULT_INSTBENCH_H
+#define _CULT_INSTBENCH_H
 
-#include "./benchbase.h"
+#include "./basebench.h"
 
 namespace cult {
 
@@ -11,7 +11,7 @@ namespace cult {
 
 struct InstSpec {
   // Instruction signature is 4 values (8-bit each) describing 4 operands:
-  enum Op {
+  enum Op : uint32_t {
     kOpNone = 0,
     kOpGpb,
     kOpGpw,
@@ -73,79 +73,79 @@ struct InstSpec {
 };
 
 // ============================================================================
-// [cult::BenchCycles]
+// [cult::InstBench]
 // ============================================================================
 
-class BenchCycles : public BenchBase {
+class InstBench : public BaseBench {
 public:
   typedef void (*Func)(uint32_t nIter, uint64_t* out);
 
-  BenchCycles(App* app) noexcept;
-  virtual ~BenchCycles() noexcept;
+  InstBench(App* app) noexcept;
+  virtual ~InstBench() noexcept;
 
   double testInstruction(uint32_t instId, InstSpec instSpec, uint32_t parallel);
   void classify(ZoneVector<InstSpec>& dst, uint32_t instId);
 
   inline bool is64Bit() const noexcept {
-    return asmjit::ArchInfo::kTypeHost == asmjit::ArchInfo::kTypeX64;
+    return ArchInfo::kIdHost == ArchInfo::kIdX64;
   }
 
   bool isImplicit(uint32_t instId) noexcept;
 
-  uint32_t getNumIters(uint32_t instId) noexcept;
+  uint32_t numIterByInstId(uint32_t instId) noexcept;
 
   inline bool isMMX(uint32_t instId, InstSpec spec) noexcept {
     return spec.get(0) == InstSpec::kOpMm || spec.get(1) == InstSpec::kOpMm;
   }
 
   inline bool isVec(uint32_t instId, InstSpec spec) noexcept {
-    const X86Inst& inst = X86Inst::getInst(instId);
+    const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && !isMMX(instId, spec);
   }
 
   inline bool isSSE(uint32_t instId, InstSpec spec) noexcept {
-    const X86Inst& inst = X86Inst::getInst(instId);
+    const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && !isMMX(instId, spec) && !inst.isVex() && !inst.isEvex();
   }
 
   inline bool isAVX(uint32_t instId, InstSpec spec) noexcept {
-    const X86Inst& inst = X86Inst::getInst(instId);
+    const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && (inst.isVex() || inst.isEvex());
   }
 
   inline bool canRun(uint32_t instId) const noexcept {
-    return _canRun(Inst::Detail(instId), nullptr, 0);
+    return _canRun(BaseInst(instId), nullptr, 0);
   }
 
   inline bool canRun(uint32_t instId, const Operand_& op0) const noexcept {
     Operand_ ops[] = { op0 };
-    return _canRun(Inst::Detail(instId), ops, 1);
+    return _canRun(BaseInst(instId), ops, 1);
   }
 
   inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1) const noexcept {
     Operand extraOp;
     Operand_ ops[] = { op0, op1 };
-    return _canRun(Inst::Detail(instId), ops, 2);
+    return _canRun(BaseInst(instId), ops, 2);
   }
 
   inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1, const Operand_& op2) const noexcept {
     Operand extraOp;
     Operand_ ops[] = { op0, op1, op2 };
-    return _canRun(Inst::Detail(instId), ops, 3);
+    return _canRun(BaseInst(instId), ops, 3);
   }
 
   inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1, const Operand_& op2, const Operand_& op3) const noexcept {
     Operand extraOp;
     Operand_ ops[] = { op0, op1, op2, op3 };
-    return _canRun(Inst::Detail(instId), ops, 4);
+    return _canRun(BaseInst(instId), ops, 4);
   }
 
-  bool _canRun(const Inst::Detail& detail, const Operand_* operands, uint32_t count) const noexcept;
+  bool _canRun(const BaseInst& inst, const Operand_* operands, uint32_t count) const noexcept;
 
   void run() override;
-  void beforeBody(X86Assembler& a) override;
-  void compileBody(X86Assembler& a, X86Gp rCnt) override;
-  void afterBody(X86Assembler& a) override;
+  void beforeBody(x86::Assembler& a) override;
+  void compileBody(x86::Assembler& a, x86::Gp rCnt) override;
+  void afterBody(x86::Assembler& a) override;
 
   uint32_t _instId;
   InstSpec _instSpec;
@@ -155,4 +155,4 @@ public:
 
 } // cult namespace
 
-#endif // _CULT_BENCHCYCLES_H
+#endif // _CULT_INSTBENCH_H
