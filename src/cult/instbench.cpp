@@ -782,25 +782,38 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   Label L_Body = a.newLabel();
   Label L_End = a.newLabel();
   Label L_SubFn = a.newLabel();
-
-  // PUSH/POP modify the stack, we have to revert it in the inner loop.
   int stackOperationSize = 0;
-  if (instId == x86::Inst::kIdPush || instId == x86::Inst::kIdPop) {
-    stackOperationSize = (_instSpec.get(0) == InstSpec::kOpGpw ? 2 : int(a.gpSize())) * int(_nUnroll);
-  }
 
-  // This will cost us some cycles, however, we really want some predictable state.
-  if (instId == x86::Inst::kIdCall) {
-    if (_instSpec.get(0) != InstSpec::kOpRel)
-      a.lea(a.zax(), x86::ptr(L_SubFn));
-  }
-  else {
-    a.mov(x86::eax, 999);
-    a.mov(x86::ebx, 49182);
-    a.mov(x86::ecx, 3); // Used by divisions, should be a small number.
-    a.mov(x86::edx, 1193833);
-    a.mov(x86::esi, 192822);
-    a.mov(x86::edi, 1);
+  switch (instId) {
+    case x86::Inst::kIdPush:
+    case x86::Inst::kIdPop:
+      // PUSH/POP modify the stack, we have to revert it in the inner loop.
+      stackOperationSize = (_instSpec.get(0) == InstSpec::kOpGpw ? 2 : int(a.gpSize())) * int(_nUnroll);
+      break;
+
+    case x86::Inst::kIdCall:
+      if (_instSpec.get(0) != InstSpec::kOpRel)
+        a.lea(a.zax(), x86::ptr(L_SubFn));
+      break;
+
+    case x86::Inst::kIdCpuid:
+      a.xor_(x86::eax, x86::eax);
+      a.xor_(x86::ecx, x86::ecx);
+      break;
+
+    case x86::Inst::kIdXgetbv:
+      a.xor_(x86::ecx, x86::ecx);
+      break;
+
+    default:
+      // This will cost us some cycles, however, we really want some predictable state.
+      a.mov(x86::eax, 999);
+      a.mov(x86::ebx, 49182);
+      a.mov(x86::ecx, 3); // Used by divisions, should be a small number.
+      a.mov(x86::edx, 1193833);
+      a.mov(x86::esi, 192822);
+      a.mov(x86::edi, 1);
+      break;
   }
 
   a.test(rCnt, rCnt);
