@@ -65,7 +65,7 @@ struct InstSpec {
     return i;
   }
 
-  inline uint32_t get(uint32_t index) const noexcept {
+  inline uint32_t get(size_t index) const noexcept {
     assert(index < 6);
     return uint32_t((value >> (index * 8)) & 0xFF);
   }

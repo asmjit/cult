@@ -42,8 +42,8 @@ Compiling
 CULT requires only AsmJit as a dependency, which it expects by default at the same directory level as `cult` itself. The simplest way to compile cult is by using cmake:
 
 ```bash
-# Clone CULT and AsmJit
-$ git clone --depth=1 https://github.com/asmjit/asmjit
+# Clone CULT and AsmJit (next-wip branch)
+$ git clone --depth=1 -b next-wip https://github.com/asmjit/asmjit
 $ git clone --depth=1 https://github.com/asmjit/cult
 
 # Create Build Directory
@@ -63,8 +63,10 @@ Command Line Arguments
 
 `$ cult [parameters]`
 
+  * `--help` - Show possible command line parameters
   * `--dump` - Dump assembly generated (and executed)
   * `--quiet` - Run in quiet mode and output only the resulting JSON
+  * `--estimate` - Run faster (to verify it works) with less precision
   * `--no-rounding` - Don't round cycles and latencies
   * `--output=file` - Output to a file instead of STDOUT
 
@@ -81,22 +83,32 @@ The JSON document has the following structure:
 ```js
 {
   "cult": {
-    "version": "X.Y.Z",         // CULT 'major.minor.micro' version.
-    "cpu": "CPU Brand String"   // Information about the host CPU.
+    "version": "X.Y.Z"          // CULT 'major.minor.micro' version.
   },
 
-  // Array of CPUID results.
-  "cpuid": [
+  // CPU data retrieved by CPUID instruction.
+  "cpuData": [
     {
-      "level"  : "HEX",         // CPUID:EAX input (main leaf).
-      "subleaf": "HEX",         // CPUID:ECX input (sub leaf).
-      "eax"    : "HEX",         // CPUID:EAX output.
-      "ebx"    : "HEX",         // CPUID:EBX output.
-      "ecx"    : "HEX",         // CPUID:ECX output.
-      "edx"    : "HEX"          // CPUID:EDX output.
+      "level"     : "HEX",      // CPUID:EAX input (main leaf).
+      "subleaf"   : "HEX",      // CPUID:ECX input (sub leaf).
+      "eax"       : "HEX",      // CPUID:EAX output.
+      "ebx"       : "HEX",      // CPUID:EBX output.
+      "ecx"       : "HEX",      // CPUID:ECX output.
+      "edx"       : "HEX"       // CPUID:EDX output.
     }
     ...
   ],
+
+  // CPU information
+  "cpuInfo": {
+    "vendorName"  : "String",   // CPU vendor name.
+    "vendorString": "String",   // CPU vendor string.
+    "brandString" : "String",   // CPU brand string.
+    "codename"    : "String",   // CPU code name.
+    "modelId"     : "HEX",      // Model ID + Extended Model ID.
+    "familyId"    : "HEX",      // Family ID + Extended Family ID.
+    "steppingId"  : "HEX"       // Stepping.
+  },
 
   // Array of instructions measured.
   "instructions": [
