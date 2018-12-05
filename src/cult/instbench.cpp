@@ -57,8 +57,6 @@ static bool isSafeGp(uint32_t instId) {
          instId == x86::Inst::kIdPush     ||
          instId == x86::Inst::kIdRcl      ||
          instId == x86::Inst::kIdRcr      ||
-         instId == x86::Inst::kIdRdfsbase ||
-         instId == x86::Inst::kIdRdgsbase ||
          instId == x86::Inst::kIdRdrand   ||
          instId == x86::Inst::kIdRdseed   ||
          instId == x86::Inst::kIdRol      ||
