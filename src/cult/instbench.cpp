@@ -522,7 +522,9 @@ uint32_t InstBench::numIterByInstId(uint32_t instId) noexcept {
   switch (instId) {
     // Return low number for instructions that are really slow.
     case x86::Inst::kIdCpuid:
-      return 10;
+    case x86::Inst::kIdRdrand:
+    case x86::Inst::kIdRdseed:
+      return 40;
 
     default:
       return 1000;
