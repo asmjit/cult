@@ -21,6 +21,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <algorithm>
 
 namespace cult {
 using namespace asmjit;

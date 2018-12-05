@@ -55,6 +55,7 @@ public:
   inline const CmdLine& cmdLine() const noexcept { return _cmd; }
   inline ZoneAllocator* allocator() const noexcept { return const_cast<ZoneAllocator*>(&_allocator); }
 
+  inline bool help() const noexcept { return _help; }
   inline bool verbose() const noexcept { return _verbose; }
   inline bool dump() const noexcept { return _dump; }
   inline JSONBuilder& json() noexcept { return _json; }
@@ -65,9 +66,11 @@ public:
   Zone _zone;
   ZoneAllocator _allocator;
 
-  bool _verbose;
-  bool _round;
+  bool _help;
   bool _dump;
+  bool _round;
+  bool _verbose;
+  bool _estimate;
 
   String _output;
   JSONBuilder _json;

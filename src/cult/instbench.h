@@ -13,6 +13,7 @@ struct InstSpec {
   // Instruction signature is 4 values (8-bit each) describing 4 operands:
   enum Op : uint32_t {
     kOpNone = 0,
+    kOpRel,
     kOpGpb,
     kOpGpw,
     kOpGpd,
@@ -45,31 +46,35 @@ struct InstSpec {
   };
 
   static inline InstSpec none() noexcept {
-    InstSpec spec = { 0 };
-    return spec;
+    return InstSpec { 0 };
   }
 
-  static inline InstSpec pack(uint32_t o0, uint32_t o1 = 0, uint32_t o2 = 0, uint32_t o3 = 0) noexcept {
-    InstSpec spec;
-    spec.value = (o0) | (o1 << 8) | (o2 << 16) | (o3 << 24);
-    return spec;
+  static inline InstSpec pack(uint32_t o0, uint32_t o1 = 0, uint32_t o2 = 0, uint32_t o3 = 0, uint32_t o4 = 0, uint32_t o5 = 0) noexcept {
+    return InstSpec { uint64_t(o0) | uint64_t(o1 << 8) | uint64_t(o2 << 16) | uint64_t(o3 << 24) | (uint64_t(o4) << 32) | (uint64_t(o5) << 40) };
   }
 
   inline bool isValid() const noexcept { return value != 0; }
 
   inline uint32_t count() const noexcept {
     uint32_t i = 0;
-    while (i < 4 && (value & (0xFF << (i * 8))))
+    uint64_t v = value;
+    while (v & 0xFF) {
       i++;
+      v >>= 8;
+    }
     return i;
   }
 
   inline uint32_t get(uint32_t index) const noexcept {
-    assert(index < 4);
-    return (value >> (index * 8)) & 0xFF;
+    assert(index < 6);
+    return uint32_t((value >> (index * 8)) & 0xFF);
   }
 
-  uint32_t value;
+  static inline bool isImplicitOp(uint32_t op) noexcept {
+    return (op >= kOpAl && op <= kOpRdx) || op == kOpXmm0;
+  }
+
+  uint64_t value;
 };
 
 // ============================================================================
@@ -117,27 +122,10 @@ public:
     return _canRun(BaseInst(instId), nullptr, 0);
   }
 
-  inline bool canRun(uint32_t instId, const Operand_& op0) const noexcept {
-    Operand_ ops[] = { op0 };
-    return _canRun(BaseInst(instId), ops, 1);
-  }
-
-  inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1) const noexcept {
-    Operand extraOp;
-    Operand_ ops[] = { op0, op1 };
-    return _canRun(BaseInst(instId), ops, 2);
-  }
-
-  inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1, const Operand_& op2) const noexcept {
-    Operand extraOp;
-    Operand_ ops[] = { op0, op1, op2 };
-    return _canRun(BaseInst(instId), ops, 3);
-  }
-
-  inline bool canRun(uint32_t instId, const Operand_& op0, const Operand_& op1, const Operand_& op2, const Operand_& op3) const noexcept {
-    Operand extraOp;
-    Operand_ ops[] = { op0, op1, op2, op3 };
-    return _canRun(BaseInst(instId), ops, 4);
+  template<typename... ArgsT>
+  inline bool canRun(uint32_t instId, ArgsT&&... args) const noexcept {
+    Operand_ ops[] = { args... };
+    return _canRun(BaseInst(instId), ops, sizeof...(args));
   }
 
   bool _canRun(const BaseInst& inst, const Operand_* operands, uint32_t count) const noexcept;

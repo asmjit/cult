@@ -24,6 +24,14 @@ inline void cpuid_query(CpuidOut* result, uint32_t inEax, uint32_t inEcx = 0) no
 #endif
 }
 
+inline void fix_brand_string(char* str) noexcept {
+  size_t len = strlen(str);
+  while (len && str[len - 1] == ' ') {
+    str[len - 1] = '\0';
+    len--;
+  }
+}
+
 CpuDetect::CpuDetect(App* app) noexcept : _app(app) {
   _modelId = 0;
   _familyId = 0;
@@ -85,7 +93,7 @@ void CpuDetect::_queryCpuData() noexcept {
           modelId += (((out.eax >> 16) & 0x0Fu) << 4);
 
         if (familyId == 0x0Fu)
-          familyId += (((out.eax >> 20) & 0xFFu) << 4);
+          familyId += (out.eax >> 20) & 0xFFu;
 
         _modelId  = modelId;
         _familyId = familyId;
@@ -212,8 +220,9 @@ void CpuDetect::_queryCpuData() noexcept {
 
   if (_app->verbose())
     printf("\n");
-
   json.closeArray(true);
+
+  fix_brand_string(_brandString);
 }
 
 void CpuDetect::_queryCpuInfo() noexcept {
@@ -221,7 +230,7 @@ void CpuDetect::_queryCpuInfo() noexcept {
   const char* codename = "Unknown";
 
   if (::strcmp(_vendorString, "GenuineIntel") == 0) {
-    codename = "Unknown (Intel)";
+    codename = "Unknown";
 
     if (_familyId <= 0x04) {
       codename = "I486";
@@ -305,7 +314,7 @@ void CpuDetect::_queryCpuInfo() noexcept {
   }
 
   if (::strcmp(_vendorString, "AuthenticAMD") == 0) {
-    codename = "Unknown (AMD)";
+    codename = "Unknown";
 
     if (_familyId <= 0x04) {
       codename = "AM486";
@@ -341,7 +350,7 @@ void CpuDetect::_queryCpuInfo() noexcept {
     }
 
     if (_familyId == 0x17) {
-      codename = "Ryzen";
+      codename = "Zen";
     }
   }
   ::strncpy(_archCodename, codename, sizeof(_archCodename) - 1);
@@ -373,6 +382,9 @@ void CpuDetect::_queryCpuInfo() noexcept {
 }
 
 void CpuDetect::addEntry(const CpuidIn& in, const CpuidOut& out) noexcept {
+  if (!out.isValid())
+    return;
+
   if (_app->verbose())
     printf("  In:%08X Sub:%08X -> EAX:%08X EBX:%08X ECX:%08X EDX:%08X\n", in.eax, in.ecx, out.eax, out.ebx, out.ecx, out.edx);
 
