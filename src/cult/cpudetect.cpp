@@ -3,16 +3,16 @@
 namespace cult {
 
 inline void cpuid_query(CpuidOut* result, uint32_t inEax, uint32_t inEcx = 0) noexcept {
-#if ASMJIT_CXX_MSC
+#if defined(_MSC_VER)
   __cpuidex(reinterpret_cast<int*>(result), inEax, inEcx);
-#elif ASMJIT_ARCH_X86 == 32 && ASMJIT_CXX_GNU
+#elif ASMJIT_ARCH_X86 == 32 && defined(__GNUC__)
   __asm__ __volatile__(
     "mov %%ebx, %%edi\n"
     "cpuid\n"
     "xchg %%edi, %%ebx\n"
       : "=a"(result->eax), "=D"(result->ebx), "=c"(result->ecx), "=d"(result->edx)
       : "a"(inEax), "c"(inEcx));
-#elif ASMJIT_ARCH_X86 == 64 && ASMJIT_CXX_GNU
+#elif ASMJIT_ARCH_X86 == 64 && defined(__GNUC__)
   __asm__ __volatile__(
     "mov %%rbx, %%rdi\n"
     "cpuid\n"
