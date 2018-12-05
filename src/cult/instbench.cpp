@@ -360,10 +360,11 @@ void InstBench::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
     }
 
     if (instId == x86::Inst::kIdMulx) {
-    if (canRun(instId, x86::eax, x86::eax, x86::eax, x86::edx))
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpEdx));
-      if (is64Bit())
-        dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpRdx));
+      if (canRun(instId, x86::eax, x86::eax, x86::eax, x86::edx)) {
+        dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpEdx));
+        if (is64Bit())
+          dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpRdx));
+      }
     }
 
     if (instId == x86::Inst::kIdBlendvpd ||
