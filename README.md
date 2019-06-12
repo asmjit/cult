@@ -6,7 +6,7 @@ CPU Ultimate Latency Test.
   * [Official Repository (asmjit/cult)](https://github.com/asmjit/cult)
   * [Official Blog (asmbits)](https://asmbits.blogspot.com/ncr)
   * [Official Chat (gitter)](https://gitter.im/asmjit/asmjit)
-  * [Permissive ZLIB license](./LICENSE.md)
+  * [Permissive Zlib license](./LICENSE.md)
 
 Online Access
 -------------
@@ -43,7 +43,7 @@ CULT requires only AsmJit as a dependency, which it expects by default at the sa
 
 ```bash
 # Clone CULT and AsmJit (next-wip branch)
-$ git clone --depth=1 -b next-wip https://github.com/asmjit/asmjit
+$ git clone --depth=1 https://github.com/asmjit/asmjit --branch next-wip
 $ git clone --depth=1 https://github.com/asmjit/cult
 
 # Create Build Directory
@@ -51,7 +51,7 @@ mkdir cult/build
 cd cult/build
 
 # Configure and Make
-cmake .. [use arguments you need]
+cmake .. [-DCMAKE_BUILD_TYPE=Release]
 make
 
 # Run CULT!

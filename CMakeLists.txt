@@ -1,70 +1,40 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.8)
+project(cult CXX)
 
-project(cult C CXX)
-
-set(CULT_DIR   "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH "CULT directory")
-set(ASMJIT_DIR "${CULT_DIR}/../asmjit"     CACHE PATH "Location of 'asmjit'")
-
-if(NOT DEFINED ASMJIT_BUILD_EMBED)
-  set(ASMJIT_BUILD_EMBED TRUE)
+if (NOT DEFINED CULT_DIR)
+  set(CULT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 endif()
 
-# =============================================================================
-# [CULT - Project]
-# =============================================================================
+if (NOT DEFINED ASMJIT_DIR)
+  set(ASMJIT_DIR "${CULT_DIR}/../asmjit")
+endif()
 
-include("${CULT_DIR}/CxxProject.cmake")
-cxx_project(cult)
-cxx_detect_standard(CULT_PRIVATE_CFLAGS)
+set(CULT_DIR   "${CULT_DIR}"   CACHE PATH "Location of 'cult'")
+set(ASMJIT_DIR "${ASMJIT_DIR}" CACHE PATH "Location of 'asmjit'")
+
+if(NOT DEFINED ASMJIT_STATIC)
+  set(ASMJIT_STATIC TRUE)
+endif()
 
 include("${ASMJIT_DIR}/CMakeLists.txt")
-list(APPEND CULT_DEPS ${ASMJIT_LIBS})
-list(APPEND CULT_PRIVATE_CFLAGS ${ASMJIT_CFLAGS})
 
-list(REMOVE_DUPLICATES CULT_DEPS)
-list(REMOVE_DUPLICATES CULT_PRIVATE_CFLAGS)
-
-cxx_project_info(cult)
-
-# =============================================================================
-# [CULT - Source]
-# =============================================================================
-
-set(CULT_SRC "")
-
-cxx_add_source(cult CULT_SRC cult
-  app.cpp
-  app.h
-  basebench.cpp
-  basebench.h
-  cpudetect.cpp
-  cpudetect.h
-  globals.h
-  instbench.cpp
-  instbench.h
-  jsonbuilder.cpp
-  jsonbuilder.h
-  schedutils.cpp
-  schedutils.h
+set(CULT_SRC
+  src/cult/app.cpp
+  src/cult/app.h
+  src/cult/basebench.cpp
+  src/cult/basebench.h
+  src/cult/cpudetect.cpp
+  src/cult/cpudetect.h
+  src/cult/globals.h
+  src/cult/instbench.cpp
+  src/cult/instbench.h
+  src/cult/jsonbuilder.cpp
+  src/cult/jsonbuilder.h
+  src/cult/schedutils.cpp
+  src/cult/schedutils.h
 )
 
-# =============================================================================
-# [CULT - Targets]
-# =============================================================================
-
-add_executable(cult ${CULT_SRC} ${ASMJIT_SRC})
-target_link_libraries(cult ${ASMJIT_DEPS})
-target_include_directories(cult BEFORE PRIVATE ${ASMJIT_INCLUDE_DIR})
-set_target_properties(cult PROPERTIES LINK_FLAGS "${ASMJIT_PRIVATE_LFLAGS}")
-
-if(CMAKE_BUILD_TYPE)
-  if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    target_compile_options(cult PRIVATE ${CULT_PRIVATE_CFLAGS} ${CULT_PRIVATE_CFLAGS_DBG})
-  else()
-    target_compile_options(cult PRIVATE ${CULT_PRIVATE_CFLAGS} ${CULT_PRIVATE_CFLAGS_REL})
-  endif()
-else()
-  target_compile_options(cult PRIVATE ${CULT_PRIVATE_CFLAGS}
-    $<$<CONFIG:Debug>:${CULT_PRIVATE_CFLAGS_DBG}>
-    $<$<NOT:$<CONFIG:Debug>>:${CULT_PRIVATE_CFLAGS_REL}>)
-endif()
+add_executable(cult ${CULT_SRC})
+target_link_libraries(cult AsmJit::AsmJit)
+target_compile_features(cult PUBLIC cxx_std_11)
+set_property(TARGET cult PROPERTY CXX_VISIBILITY_PRESET hidden)
