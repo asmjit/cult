@@ -42,8 +42,8 @@ Compiling
 CULT requires only AsmJit as a dependency, which it expects by default at the same directory level as `cult` itself. The simplest way to compile cult is by using cmake:
 
 ```bash
-# Clone CULT and AsmJit (next-wip branch)
-$ git clone --depth=1 https://github.com/asmjit/asmjit --branch next-wip
+# Clone CULT and AsmJit
+$ git clone --depth=1 https://github.com/asmjit/asmjit
 $ git clone --depth=1 https://github.com/asmjit/cult
 
 # Create Build Directory

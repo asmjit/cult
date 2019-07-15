@@ -215,7 +215,9 @@ void InstBench::run() {
 
     /*
     if (specs.size() == 0) {
-      printf("MISSING SPEC: %s\n", x86::InstDB::nameById(instId));
+      asmjit::String name;
+      InstAPI::instIdToString(ArchInfo::kIdHost, instId, name);
+      printf("MISSING SPEC: %s\n", name.data());
     }
     */
 
@@ -227,7 +229,7 @@ void InstBench::run() {
       if (instId == x86::Inst::kIdCall)
         sb.appendString("call+ret");
       else
-        sb.appendString(x86::InstDB::nameById(instId));
+        InstAPI::instIdToString(ArchInfo::kIdHost, instId, sb);
 
       for (uint32_t i = 0; i < opCount; i++) {
         if (i == 0)
@@ -329,7 +331,7 @@ void InstBench::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
     return;
   }
 
-  // Handle instructions that uses implicit register(s) here.
+  // Handle instructions that use implicit register(s) here.
   if (isImplicit(instId)) {
     if (instId == x86::Inst::kIdCbw)
       dst.append(allocator, InstSpec::pack(InstSpec::kOpAx));
@@ -506,11 +508,11 @@ bool InstBench::_canRun(const BaseInst& inst, const Operand_* operands, uint32_t
   if (inst.id() == x86::Inst::kIdNone)
     return false;
 
-  if (BaseInst::validate(ArchInfo::kIdHost, inst, operands, count) != kErrorOk)
+  if (InstAPI::validate(ArchInfo::kIdHost, inst, operands, count) != kErrorOk)
     return false;
 
   BaseFeatures features;
-  if (BaseInst::queryFeatures(ArchInfo::kIdHost, inst, operands, count, features) != kErrorOk)
+  if (InstAPI::queryFeatures(ArchInfo::kIdHost, inst, operands, count, features) != kErrorOk)
     return false;
 
   if (!_cpuInfo.features().hasAll(features))
@@ -539,7 +541,9 @@ double InstBench::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t p
 
   Func func = compileFunc();
   if (!func) {
-    printf("FAILED to compile function for '%s' instruction\n", x86::InstDB::nameById(instId));
+    String name;
+    InstAPI::instIdToString(ArchInfo::kIdHost, instId, name);
+    printf("FAILED to compile function for '%s' instruction\n", name.data());
     return -1.0;
   }
 

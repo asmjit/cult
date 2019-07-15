@@ -79,7 +79,7 @@ void CpuDetect::_queryCpuData() noexcept {
         if (::memcmp(_vendorString, "GenuineIntel"   , 12) == 0) vendorName = "Intel";
         if (::memcmp(_vendorString, "AuthenticAMD"   , 12) == 0) vendorName = "AMD";
         if (::memcmp(_vendorString, "VIA\0VIA\0VIA\0", 12) == 0) vendorName = "VIA";
-        ::strcpy(_vendorName, vendorName);
+        strcpy(_vendorName, vendorName);
         break;
       }
 
@@ -229,7 +229,7 @@ void CpuDetect::_queryCpuInfo() noexcept {
   // CPU architecture codename.
   const char* codename = "Unknown";
 
-  if (::strcmp(_vendorString, "GenuineIntel") == 0) {
+  if (strcmp(_vendorString, "GenuineIntel") == 0) {
     codename = "Unknown";
 
     if (_familyId <= 0x04) {
@@ -313,7 +313,7 @@ void CpuDetect::_queryCpuInfo() noexcept {
     }
   }
 
-  if (::strcmp(_vendorString, "AuthenticAMD") == 0) {
+  if (strcmp(_vendorString, "AuthenticAMD") == 0) {
     codename = "Unknown";
 
     if (_familyId <= 0x04) {
@@ -353,7 +353,7 @@ void CpuDetect::_queryCpuInfo() noexcept {
       codename = "Zen";
     }
   }
-  ::strncpy(_archCodename, codename, sizeof(_archCodename) - 1);
+  strncpy(_archCodename, codename, sizeof(_archCodename) - 1);
 
   if (_app->verbose()) {
     printf("CpuDetect:\n");
