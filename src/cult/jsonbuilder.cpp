@@ -9,9 +9,9 @@ JSONBuilder::JSONBuilder(String* dst) noexcept
 
 JSONBuilder& JSONBuilder::openArray() noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
-  _dst->appendChar('[');
+  _dst->append('[');
   _last = kTokenNone;
   _level++;
 
@@ -21,11 +21,11 @@ JSONBuilder& JSONBuilder::openArray() noexcept {
 JSONBuilder& JSONBuilder::closeArray(bool nl) noexcept {
   _level--;
   if (nl) {
-    _dst->appendChar('\n');
+    _dst->append('\n');
     _dst->appendChars(' ', _level * 2);
   }
 
-  _dst->appendChar(']');
+  _dst->append(']');
   _last = kTokenValue;
 
   return *this;
@@ -33,9 +33,9 @@ JSONBuilder& JSONBuilder::closeArray(bool nl) noexcept {
 
 JSONBuilder& JSONBuilder::openObject() noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
-  _dst->appendChar('{');
+  _dst->append('{');
   _last = kTokenNone;
   _level++;
 
@@ -45,11 +45,11 @@ JSONBuilder& JSONBuilder::openObject() noexcept {
 JSONBuilder& JSONBuilder::closeObject(bool nl) noexcept {
   _level--;
   if (nl) {
-    _dst->appendChar('\n');
+    _dst->append('\n');
     _dst->appendChars(' ', _level * 2);
   }
 
-  _dst->appendChar('}');
+  _dst->append('}');
   _last = kTokenValue;
   return *this;
 }
@@ -57,7 +57,7 @@ JSONBuilder& JSONBuilder::closeObject(bool nl) noexcept {
 JSONBuilder& JSONBuilder::addKey(const char* str) noexcept {
   addString(str);
 
-  _dst->appendChar(':');
+  _dst->append(':');
   _last = kTokenNone;
 
   return *this;
@@ -65,9 +65,9 @@ JSONBuilder& JSONBuilder::addKey(const char* str) noexcept {
 
 JSONBuilder& JSONBuilder::addBool(bool b) noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
-  _dst->appendString(b ? "true" : "false");
+  _dst->append(b ? "true" : "false");
   _last = kTokenValue;
 
   return *this;
@@ -75,7 +75,7 @@ JSONBuilder& JSONBuilder::addBool(bool b) noexcept {
 
 JSONBuilder& JSONBuilder::addInt(int64_t n) noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
   _dst->appendInt(n);
   _last = kTokenValue;
@@ -85,7 +85,7 @@ JSONBuilder& JSONBuilder::addInt(int64_t n) noexcept {
 
 JSONBuilder& JSONBuilder::addUInt(uint64_t n) noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
   _dst->appendUInt(n);
   _last = kTokenValue;
@@ -95,7 +95,7 @@ JSONBuilder& JSONBuilder::addUInt(uint64_t n) noexcept {
 
 JSONBuilder& JSONBuilder::addDouble(double d) noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
   _dst->appendFormat("%g", d);
   _last = kTokenValue;
@@ -105,7 +105,7 @@ JSONBuilder& JSONBuilder::addDouble(double d) noexcept {
 
 JSONBuilder& JSONBuilder::addDoublef(const char* fmt, double d) noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
   _dst->appendFormat(fmt, d);
   _last = kTokenValue;
@@ -115,7 +115,7 @@ JSONBuilder& JSONBuilder::addDoublef(const char* fmt, double d) noexcept {
 
 JSONBuilder& JSONBuilder::addString(const char* str) noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
   _dst->appendFormat("\"%s\"", str);
   _last = kTokenValue;
@@ -127,9 +127,9 @@ JSONBuilder& JSONBuilder::addStringf(const char* fmt, ...) noexcept {
   va_list ap;
   va_start(ap, fmt);
 
-  _dst->appendChar('\"');
+  _dst->append('\"');
   _dst->appendVFormat(fmt, ap);
-  _dst->appendChar('\"');
+  _dst->append('\"');
   _last = kTokenValue;
 
   va_end(ap);
@@ -154,9 +154,9 @@ JSONBuilder& JSONBuilder::alignTo(size_t n) noexcept {
 
 JSONBuilder& JSONBuilder::beforeRecord() noexcept {
   if (_last == kTokenValue)
-    _dst->appendChar(',');
+    _dst->append(',');
 
-  _dst->appendChar('\n');
+  _dst->append('\n');
   _dst->appendChars(' ', _level * 2);
   _last = kTokenNone;
 

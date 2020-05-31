@@ -33,7 +33,7 @@ public:
   JSONBuilder& alignTo(size_t n) noexcept;
   JSONBuilder& beforeRecord() noexcept;
 
-  JSONBuilder& nl() { _dst->appendChar('\n'); return *this; }
+  JSONBuilder& nl() { _dst->append('\n'); return *this; }
   JSONBuilder& indent() { _dst->appendChars(' ', _level); return *this; }
 
   String* _dst;

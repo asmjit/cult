@@ -216,7 +216,7 @@ void InstBench::run() {
     /*
     if (specs.size() == 0) {
       asmjit::String name;
-      InstAPI::instIdToString(ArchInfo::kIdHost, instId, name);
+      InstAPI::instIdToString(Environment::kArchHost, instId, name);
       printf("MISSING SPEC: %s\n", name.data());
     }
     */
@@ -227,21 +227,21 @@ void InstBench::run() {
 
       StringTmp<256> sb;
       if (instId == x86::Inst::kIdCall)
-        sb.appendString("call+ret");
+        sb.append("call+ret");
       else
-        InstAPI::instIdToString(ArchInfo::kIdHost, instId, sb);
+        InstAPI::instIdToString(Environment::kArchHost, instId, sb);
 
       for (uint32_t i = 0; i < opCount; i++) {
         if (i == 0)
-          sb.appendString(" ");
+          sb.append(' ');
         else if (instId == x86::Inst::kIdLea)
-          sb.appendString(i == 1 ? ", [" : " + ");
+          sb.append(i == 1 ? ", [" : " + ");
         else
-          sb.appendString(", ");
+          sb.append(", ");
 
-        sb.appendString(instSpecOpAsString(instSpec.get(i)));
+        sb.append(instSpecOpAsString(instSpec.get(i)));
         if (instId == x86::Inst::kIdLea && i == opCount - 1)
-          sb.appendString("]");
+          sb.append(']');
       }
 
       double lat = testInstruction(instId, instSpec, 0);
@@ -508,11 +508,11 @@ bool InstBench::_canRun(const BaseInst& inst, const Operand_* operands, uint32_t
   if (inst.id() == x86::Inst::kIdNone)
     return false;
 
-  if (InstAPI::validate(ArchInfo::kIdHost, inst, operands, count) != kErrorOk)
+  if (InstAPI::validate(Environment::kArchHost, inst, operands, count) != kErrorOk)
     return false;
 
   BaseFeatures features;
-  if (InstAPI::queryFeatures(ArchInfo::kIdHost, inst, operands, count, features) != kErrorOk)
+  if (InstAPI::queryFeatures(Environment::kArchHost, inst, operands, count, &features) != kErrorOk)
     return false;
 
   if (!_cpuInfo.features().hasAll(features))
@@ -542,7 +542,7 @@ double InstBench::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t p
   Func func = compileFunc();
   if (!func) {
     String name;
-    InstAPI::instIdToString(ArchInfo::kIdHost, instId, name);
+    InstAPI::instIdToString(Environment::kArchHost, instId, name);
     printf("FAILED to compile function for '%s' instruction\n", name.data());
     return -1.0;
   }
@@ -793,7 +793,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     case x86::Inst::kIdPush:
     case x86::Inst::kIdPop:
       // PUSH/POP modify the stack, we have to revert it in the inner loop.
-      stackOperationSize = (_instSpec.get(0) == InstSpec::kOpGpw ? 2 : int(a.gpSize())) * int(_nUnroll);
+      stackOperationSize = (_instSpec.get(0) == InstSpec::kOpGpw ? 2 : int(a.registerSize())) * int(_nUnroll);
       break;
 
     case x86::Inst::kIdCall:
@@ -926,13 +926,13 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
           if (o2[n].isReg())
             a.emit(instId, o0[n], x86::ptr(o1[n].as<x86::Gp>(), o2[n].as<x86::Gp>()));
           else
-            a.emit(instId, o0[n], x86::ptr(o1[n].as<x86::Gp>(), o2[n].as<Imm>().i32()));
+            a.emit(instId, o0[n], x86::ptr(o1[n].as<x86::Gp>(), o2[n].as<Imm>().valueAs<int32_t>()));
         }
       }
 
       if (opCount == 4) {
         for (uint32_t n = 0; n < _nUnroll; n++) {
-          a.emit(instId, o0[n], x86::ptr(o1[n].as<x86::Gp>(), o2[n].as<x86::Gp>(), 0, o3[n].as<Imm>().i32()));
+          a.emit(instId, o0[n], x86::ptr(o1[n].as<x86::Gp>(), o2[n].as<x86::Gp>(), 0, o3[n].as<Imm>().valueAs<int32_t>()));
         }
       }
 

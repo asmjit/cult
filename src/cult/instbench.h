@@ -92,7 +92,7 @@ public:
   void classify(ZoneVector<InstSpec>& dst, uint32_t instId);
 
   inline bool is64Bit() const noexcept {
-    return ArchInfo::kIdHost == ArchInfo::kIdX64;
+    return Environment::kArchHost == Environment::kArchX64;
   }
 
   bool isImplicit(uint32_t instId) noexcept;

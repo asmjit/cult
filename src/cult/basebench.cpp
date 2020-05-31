@@ -26,7 +26,7 @@ BaseBench::Func BaseBench::compileFunc() {
 
   CodeHolder code;
 
-  code.init(_runtime.codeInfo());
+  code.init(_runtime.environment());
   code.setErrorHandler(&eh);
 
   if (_app->dump()) {
@@ -38,7 +38,7 @@ BaseBench::Func BaseBench::compileFunc() {
   x86::Assembler a(&code);
 
   FuncDetail fd;
-  fd.init(FuncSignatureT<void, uint32_t, uint64_t*>(CallConv::kIdHost));
+  fd.init(FuncSignatureT<void, uint32_t, uint64_t*>(CallConv::kIdCDecl), code.environment());
 
   FuncFrame frame;
   frame.init(fd);
@@ -49,7 +49,7 @@ BaseBench::Func BaseBench::compileFunc() {
 
   // Configure some stack vars that we use to save GP regs.
   x86::Mem stack     = x86::ptr(a.zsp());
-  x86::Mem mOut      = stack; stack.addOffset(a.gpSize());
+  x86::Mem mOut      = stack; stack.addOffset(a.registerSize());
   x86::Mem mCyclesLo = stack; stack.addOffset(4);
   x86::Mem mCyclesHi = stack; stack.addOffset(4);
 
