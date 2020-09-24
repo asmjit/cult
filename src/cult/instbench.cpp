@@ -145,7 +145,7 @@ static void fillRegArray(Operand* dst, uint32_t count, uint32_t rStart, uint32_t
 
   uint32_t rId = rStart % rIdCount;
   for (uint32_t i = 0; i < count; i++) {
-    dst[i] = BaseReg(rSign, rIdArray[rId]);
+    dst[i] = BaseReg::fromSignatureAndId(rSign, rIdArray[rId]);
     rId = (rId + rInc) % rIdCount;
   }
 }
