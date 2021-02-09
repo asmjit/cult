@@ -1,11 +1,156 @@
 #include "./instbench.h"
 
+#include <set>
+
 namespace cult {
 
+class InstSignatureIterator {
+public:
+  typedef asmjit::x86::InstDB::InstSignature InstSignature;
+  typedef asmjit::x86::InstDB::OpSignature OpSignature;
+
+  const InstSignature* _instSignature;
+  const OpSignature* _opSigArray[asmjit::Globals::kMaxOpCount];
+  uint32_t _opMaskArray[asmjit::Globals::kMaxOpCount];
+  uint32_t _memMaskArray[asmjit::Globals::kMaxOpCount];
+  uint32_t _opCount;
+  uint32_t _filter;
+  bool _isValid;
+
+  static constexpr uint32_t kMaxOpCount = 6;
+
+  static constexpr uint32_t kMemFilter =
+    x86::InstDB::kMemOpAny   |
+    x86::InstDB::kMemOpM8    |
+    x86::InstDB::kMemOpM16   |
+    x86::InstDB::kMemOpM32   |
+    x86::InstDB::kMemOpM48   |
+    x86::InstDB::kMemOpM64   |
+    x86::InstDB::kMemOpM80   |
+    x86::InstDB::kMemOpM128  |
+    x86::InstDB::kMemOpM256  |
+    x86::InstDB::kMemOpM512  |
+    x86::InstDB::kMemOpM1024 |
+    x86::InstDB::kMemOpVm32x |
+    x86::InstDB::kMemOpVm32y |
+    x86::InstDB::kMemOpVm32z |
+    x86::InstDB::kMemOpVm64x |
+    x86::InstDB::kMemOpVm64y |
+    x86::InstDB::kMemOpVm64z ;
+
+
+  inline InstSignatureIterator() { reset(); }
+  inline InstSignatureIterator(const InstSignature* instSignature, uint32_t filter = 0xFFFFFFFFu) { init(instSignature, filter); }
+  inline InstSignatureIterator(const InstSignatureIterator& other) { init(other); }
+
+  inline void reset() { ::memset(this, 0, sizeof(*this)); }
+  inline void init(const InstSignatureIterator& other) { ::memcpy(this, &other, sizeof(*this)); }
+
+  void init(const InstSignature* instSignature, uint32_t filter = 0xFFFFFFFFu) {
+    const OpSignature* opSigArray = asmjit::x86::InstDB::_opSignatureTable;
+    uint32_t opCount = instSignature->opCount;
+
+    _instSignature = instSignature;
+    _opCount = opCount;
+    _filter = filter;
+
+    uint32_t i;
+    uint32_t flags = 0u;
+
+    for (i = 0; i < opCount; i++) {
+      const OpSignature* opSig = &opSigArray[instSignature->operands[i]];
+      flags = opSig->opFlags & _filter;
+      if (!flags)
+        break;
+      _opSigArray[i] = opSig;
+      _opMaskArray[i] = asmjit::Support::blsi(flags);
+
+      if (opSig->memFlags & kMemFilter)
+        _memMaskArray[i] = asmjit::Support::blsi(opSig->memFlags & kMemFilter) | (opSig->memFlags & ~kMemFilter);
+      else
+        _memMaskArray[i] = 0;
+    }
+
+    while (i < kMaxOpCount) {
+      _opSigArray[i] = &opSigArray[0];
+      _opMaskArray[i] = 0u;
+      _memMaskArray[i] = 0u;
+      i++;
+    }
+
+    _isValid = opCount == 0 || flags != 0;
+  }
+
+  inline bool isValid() const { return _isValid; }
+  inline uint32_t opCount() const { return _opCount; }
+
+  inline const uint32_t* opMaskArray() const { return _opMaskArray; }
+  inline const OpSignature* const* opSigArray() const { return _opSigArray; }
+
+  inline uint32_t opMask(uint32_t i) const { return _opMaskArray[i]; }
+  inline uint32_t memMask(uint32_t i) const { return _memMaskArray[i]; }
+  inline const OpSignature* opSig(uint32_t i) const { return _opSigArray[i]; }
+
+  bool next() {
+    uint32_t i = _opCount - 1u;
+    for (;;) {
+      if (i == 0xFFFFFFFFu) {
+        _isValid = false;
+        return false;
+      }
+
+      // Iterate over MemFlags.
+      if (_memMaskArray[i]) {
+        uint32_t prevBit = _memMaskArray[i] & kMemFilter;
+        uint32_t allFlags = _opSigArray[i]->memFlags;
+
+        uint32_t bitsToClear = prevBit | (prevBit - 1u);
+        uint32_t remainingBits = allFlags & kMemFilter & ~bitsToClear;
+
+        if (remainingBits) {
+          _memMaskArray[i] = asmjit::Support::blsi(remainingBits) | (allFlags & ~kMemFilter);
+          return true;
+        }
+        else {
+          _memMaskArray[i] = asmjit::Support::blsi(allFlags & kMemFilter) | (allFlags & ~kMemFilter);
+        }
+      }
+
+      // Iterate over OpFlags.
+      {
+        uint32_t prevBit = _opMaskArray[i];
+        uint32_t allFlags = _opSigArray[i]->opFlags & _filter;
+
+        uint32_t bitsToClear = prevBit | (prevBit - 1u);
+        uint32_t remainingBits = allFlags & ~bitsToClear;
+
+        if (remainingBits) {
+          _opMaskArray[i] = asmjit::Support::blsi(remainingBits);
+          return true;
+        }
+        else {
+          _opMaskArray[i--] = asmjit::Support::blsi(allFlags);
+        }
+      }
+    }
+  }
+};
+
+static bool isIgnoredInst(uint32_t instId) {
+  return instId == x86::Inst::kIdVp4dpwssd ||
+         instId == x86::Inst::kIdVp4dpwssds ||
+         instId == x86::Inst::kIdV4fmaddps ||
+         instId == x86::Inst::kIdV4fmaddss ||
+         instId == x86::Inst::kIdV4fnmaddps ||
+         instId == x86::Inst::kIdV4fnmaddss ||
+         instId == x86::Inst::kIdVp2intersectd ||
+         instId == x86::Inst::kIdVp2intersectq;
+}
+
 static bool isSafeGp(uint32_t instId) {
-  return instId == x86::Inst::kIdAdd      ||
-         instId == x86::Inst::kIdAdc      ||
+  return instId == x86::Inst::kIdAdc      ||
          instId == x86::Inst::kIdAdcx     ||
+         instId == x86::Inst::kIdAdd      ||
          instId == x86::Inst::kIdAdox     ||
          instId == x86::Inst::kIdAnd      ||
          instId == x86::Inst::kIdAndn     ||
@@ -21,7 +166,6 @@ static bool isSafeGp(uint32_t instId) {
          instId == x86::Inst::kIdBlsmsk   ||
          instId == x86::Inst::kIdBlsr     ||
          instId == x86::Inst::kIdBsf      ||
-         instId == x86::Inst::kIdBsr      ||
          instId == x86::Inst::kIdBsr      ||
          instId == x86::Inst::kIdBswap    ||
          instId == x86::Inst::kIdBt       ||
@@ -78,7 +222,7 @@ static bool isSafeGp(uint32_t instId) {
          instId == x86::Inst::kIdTzmsk    ||
          instId == x86::Inst::kIdXadd     ||
          instId == x86::Inst::kIdXchg     ||
-         instId == x86::Inst::kIdXor     ;
+         instId == x86::Inst::kIdXor      ;
 }
 
 static const char* instSpecOpAsString(uint32_t instSpecOp) {
@@ -279,213 +423,144 @@ void InstBench::run() {
 void InstBench::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
   using namespace asmjit;
 
+  if (isIgnoredInst(instId))
+    return;
+
+  std::set<uint64_t> known;
+
   ZoneAllocator* allocator = _app->allocator();
 
-  // Handle special cases.
-  if (instId == x86::Inst::kIdCpuid    ||
-      instId == x86::Inst::kIdEmms     ||
-      instId == x86::Inst::kIdFemms    ||
-      instId == x86::Inst::kIdLfence   ||
-      instId == x86::Inst::kIdMfence   ||
-      instId == x86::Inst::kIdRdtsc    ||
-      instId == x86::Inst::kIdRdtscp   ||
-      instId == x86::Inst::kIdSfence   ||
-      instId == x86::Inst::kIdXgetbv   ||
-      instId == x86::Inst::kIdVzeroall ||
-      instId == x86::Inst::kIdVzeroupper) {
-    if (canRun(instId))
-      dst.append(allocator, InstSpec::pack(0));
-    return;
+  uint32_t modeMask = 0;
+  uint32_t opFilter = x86::InstDB::kOpGpbLo   |
+                      x86::InstDB::kOpGpw     |
+                      x86::InstDB::kOpGpd     |
+                      x86::InstDB::kOpGpq     |
+                      x86::InstDB::kOpXmm     |
+                      x86::InstDB::kOpYmm     |
+                      x86::InstDB::kOpZmm     |
+                      x86::InstDB::kOpMm      |
+                      x86::InstDB::kOpKReg    |
+                      x86::InstDB::kOpMem     |
+                      x86::InstDB::kOpVm      |
+                      x86::InstDB::kOpAllImm  ;
+
+  if (Environment::kArchHost == Environment::kArchX86) {
+    modeMask = x86::InstDB::kModeX86;
+    opFilter &= ~x86::InstDB::kOpGpq;
+  }
+  else {
+    modeMask = x86::InstDB::kModeX64;
   }
 
-  if (instId == x86::Inst::kIdLea) {
-    dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd));
-    dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm8));
-    dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm32));
-    dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd));
-    dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm8));
-    dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm32));
+  const x86::InstDB::InstInfo& instInfo = x86::InstDB::infoById(instId);
+  const x86::InstDB::CommonInfo& commonInfo = instInfo.commonInfo();
 
-    if (is64Bit()) {
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq));
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm8));
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm32));
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq));
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm8));
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm32));
-    }
-    return;
-  }
+  const x86::InstDB::InstSignature* instSignature = commonInfo.signatureData();
+  const x86::InstDB::InstSignature* iEnd = commonInfo.signatureEnd();
 
-  if (instId == x86::Inst::kIdCall) {
-    dst.append(allocator, InstSpec::pack(InstSpec::kOpRel));
-    if (is64Bit())
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq));
-    else
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd));
-    return;
-  }
+  // Iterate over all signatures and build the instruction we want to test.
+  for (; instSignature != iEnd; instSignature++) {
+    if (!(instSignature->modes & modeMask))
+      continue;
 
-  if (instId == x86::Inst::kIdJmp) {
-    dst.append(allocator, InstSpec::pack(InstSpec::kOpRel));
-    return;
-  }
+    InstSignatureIterator it(instSignature, opFilter);
+    while (it.isValid()) {
+      Operand operands[6];
+      uint32_t opCount = it.opCount();
+      uint32_t instSpec[6] {};
 
-  // Handle instructions that use implicit register(s) here.
-  if (isImplicit(instId)) {
-    if (instId == x86::Inst::kIdCbw)
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpAx));
+      bool skip = false;
+      bool vec = false;
+      uint32_t immCount = 0;
 
-    if (instId == x86::Inst::kIdCdq)
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpEdx, InstSpec::kOpEax));
+      for (uint32_t opIndex = 0; opIndex < opCount; opIndex++) {
+        uint32_t opMask = it.opMask(opIndex);
+        uint32_t memMask = it.memMask(opIndex);
 
-    if (instId == x86::Inst::kIdCwd)
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpDx, InstSpec::kOpAx));
+        const x86::InstDB::OpSignature* opSig = it.opSig(opIndex);
 
-    if (instId == x86::Inst::kIdCwde)
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpEax));
+        if (opMask & x86::InstDB::kOpAllRegs) {
+          x86::Reg reg;
+          uint32_t regId = 0;
 
-    if (instId == x86::Inst::kIdCdqe && is64Bit())
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpRax));
+          if (Support::isPowerOf2(opSig->regMask))
+            regId = Support::ctz(opSig->regMask);
 
-    if (instId == x86::Inst::kIdCqo && is64Bit())
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpRdx, InstSpec::kOpRax));
+          switch (opMask) {
+            case x86::InstDB::kOpGpbLo: reg._initReg(x86::GpbLo::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpb; break;
+            case x86::InstDB::kOpGpbHi: reg._initReg(x86::GpbHi::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpb; break;
+            case x86::InstDB::kOpGpw  : reg._initReg(x86::Gpw  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpw; break;
+            case x86::InstDB::kOpGpd  : reg._initReg(x86::Gpd  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpd; break;
+            case x86::InstDB::kOpGpq  : reg._initReg(x86::Gpq  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpq; break;
+            case x86::InstDB::kOpXmm  : reg._initReg(x86::Xmm  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpXmm; vec = true; break;
+            case x86::InstDB::kOpYmm  : reg._initReg(x86::Ymm  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpYmm; vec = true; break;
+            case x86::InstDB::kOpZmm  : reg._initReg(x86::Zmm  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpZmm; vec = true; break;
+            case x86::InstDB::kOpMm   : reg._initReg(x86::Mm   ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpMm; vec = true; break;
+            case x86::InstDB::kOpKReg : reg._initReg(x86::KReg ::kSignature, 1    ); instSpec[opIndex] = InstSpec::kOpKReg; skip = true; break;
+            default:
+              printf("[!!] Unknown register operand: OpMask=0x%08X\n", opMask);
+              skip = true;
+              break;
+          }
 
-    if (instId == x86::Inst::kIdDiv || instId == x86::Inst::kIdIdiv ||
-        instId == x86::Inst::kIdMul || instId == x86::Inst::kIdImul) {
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpAx, InstSpec::kOpGpb));
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpDx, InstSpec::kOpAx, InstSpec::kOpGpw));
-      dst.append(allocator, InstSpec::pack(InstSpec::kOpEdx, InstSpec::kOpEax, InstSpec::kOpGpd));
+          if (Support::isPowerOf2(opSig->regMask)) {
+            switch (opMask) {
+              case x86::InstDB::kOpGpbLo: instSpec[opIndex] = InstSpec::kOpAl + regId; break;
+              case x86::InstDB::kOpGpbHi: instSpec[opIndex] = InstSpec::kOpAl + regId; break;
+              case x86::InstDB::kOpGpw  : instSpec[opIndex] = InstSpec::kOpAx + regId; break;
+              case x86::InstDB::kOpGpd  : instSpec[opIndex] = InstSpec::kOpEax + regId; break;
+              case x86::InstDB::kOpGpq  : instSpec[opIndex] = InstSpec::kOpRax + regId; break;
+              case x86::InstDB::kOpXmm  : instSpec[opIndex] = InstSpec::kOpXmm0; break;
+              default:
+                printf("[!!] Unknown register operand: OpMask=0x%08X\n", opMask);
+                skip = true;
+                break;
+            }
+          }
 
-      if (is64Bit())
-        dst.append(allocator, InstSpec::pack(InstSpec::kOpRdx, InstSpec::kOpRax, InstSpec::kOpGpq));
-    }
 
-    if (instId == x86::Inst::kIdMulx) {
-      if (canRun(instId, x86::eax, x86::eax, x86::eax, x86::edx)) {
-        dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpEdx));
-        if (is64Bit())
-          dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpRdx));
+          operands[opIndex] = reg;
+        }
+        else if (opMask & x86::InstDB::kOpMem) {
+          // TODO:
+          skip = true;
+        }
+        else if (opMask & x86::InstDB::kOpVm) {
+          // TODO:
+          skip = true;
+        }
+        else if (opMask & x86::InstDB::kOpAllImm) {
+          operands[opIndex] = Imm(++immCount);
+          if (opMask & (x86::InstDB::kOpI64 | x86::InstDB::kOpU64))
+            instSpec[opIndex] = InstSpec::kOpImm64;
+          else if (opMask & (x86::InstDB::kOpI32 | x86::InstDB::kOpU32))
+            instSpec[opIndex] = InstSpec::kOpImm32;
+          else if (opMask & (x86::InstDB::kOpI16 | x86::InstDB::kOpU16))
+            instSpec[opIndex] = InstSpec::kOpImm16;
+          else
+            instSpec[opIndex] = InstSpec::kOpImm8;
+        }
+        else {
+          skip = true;
+        }
       }
-    }
 
-    if (instId == x86::Inst::kIdBlendvpd ||
-        instId == x86::Inst::kIdBlendvps ||
-        instId == x86::Inst::kIdSha256rnds2 ||
-        instId == x86::Inst::kIdPblendvb) {
-      if (canRun(instId, x86::xmm2, x86::xmm1, x86::xmm0))
-        dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm0));
-    }
+      if (!skip) {
+        if (vec || isSafeGp(instId)) {
+          BaseInst baseInst(instId, 0);
+          if (_canRun(baseInst, operands, opCount)) {
+            InstSpec spec = InstSpec::pack(instSpec[0], instSpec[1], instSpec[2], instSpec[3], instSpec[4], instSpec[5]);
+            if (known.find(spec.value) == known.end()) {
+              known.insert(spec.value);
+              dst.append(allocator, spec);
+            }
+          }
+        }
+      }
 
-    if (instId == x86::Inst::kIdPcmpistri ||
-        instId == x86::Inst::kIdVpcmpistri) {
-      if (canRun(instId, x86::xmm0, x86::xmm0, imm(0), x86::ecx))
-        dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8, InstSpec::kOpEcx));
+      it.next();
     }
-
-    if (instId == x86::Inst::kIdPcmpistrm ||
-        instId == x86::Inst::kIdVpcmpistrm) {
-      if (canRun(instId, x86::xmm0, x86::xmm0, imm(0), x86::xmm0))
-        dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8, InstSpec::kOpXmm0));
-    }
-
-    if (instId == x86::Inst::kIdPcmpestri ||
-        instId == x86::Inst::kIdVpcmpestri) {
-      if (canRun(instId, x86::xmm0, x86::xmm0, imm(0), x86::ecx, x86::eax, x86::edx))
-        dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8, InstSpec::kOpEcx, InstSpec::kOpEax, InstSpec::kOpEdx));
-    }
-
-    if (instId == x86::Inst::kIdPcmpestrm ||
-        instId == x86::Inst::kIdVpcmpestrm) {
-      if (canRun(instId, x86::xmm0, x86::xmm0, imm(0), x86::xmm0, x86::eax, x86::edx))
-        dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8, InstSpec::kOpXmm0, InstSpec::kOpEax, InstSpec::kOpEdx));
-    }
-
-    // Imul has also a variant that doesn't use implicit registers.
-    if (instId != x86::Inst::kIdImul)
-      return;
   }
-
-  if (isSafeGp(instId)) {
-    if (instId != x86::Inst::kIdImul) {
-      if (canRun(instId, x86::bl)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpb));
-      if (canRun(instId, x86::bx)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpw));
-      if (canRun(instId, x86::ebx)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd));
-      if (canRun(instId, x86::rbx)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq));
-    }
-
-    if (canRun(instId, x86::bl, x86::al)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpb, InstSpec::kOpGpb));
-    if (canRun(instId, x86::bl, imm(6))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpb, InstSpec::kOpImm8));
-
-    if (canRun(instId, x86::bx, x86::di)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpGpw));
-    if (canRun(instId, x86::bx, imm(10000))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpImm16));
-    else if (canRun(instId, x86::bx, imm(10)))  dst.append(allocator, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpImm8));
-
-    if (canRun(instId, x86::bx, x86::dl)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpGpb));
-    if (canRun(instId, x86::ebx, x86::dl)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpb));
-    if (canRun(instId, x86::ebx, x86::dx)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpw));
-    if (canRun(instId, x86::rbx, x86::dl)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpb));
-    if (canRun(instId, x86::rbx, x86::dx)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpw));
-    if (canRun(instId, x86::rbx, x86::edx)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpd));
-
-    if (canRun(instId, x86::ebx, x86::edi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd));
-    if (canRun(instId, x86::ebx, imm(100000))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpImm32));
-    else if (canRun(instId, x86::ebx, imm(10))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpImm8));
-
-    if (canRun(instId, x86::rbx, x86::rdi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq));
-    if (canRun(instId, x86::rbx, imm(100000))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpImm32));
-    else if (canRun(instId, x86::rbx, imm(10))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpImm8));
-    if (canRun(instId, x86::rbx, imm(10000000000ull))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpImm64));
-
-    if (canRun(instId, x86::ebx, x86::edi, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm8));
-    if (canRun(instId, x86::rbx, x86::rdi, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm8));
-
-    if (canRun(instId, x86::bl, x86::dl, x86::al)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpb, InstSpec::kOpGpb, InstSpec::kOpGpb));
-    if (canRun(instId, x86::bx, x86::di, x86::si)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpw, InstSpec::kOpGpw, InstSpec::kOpGpw));
-    if (canRun(instId, x86::ebx, x86::edi, x86::esi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd));
-    if (canRun(instId, x86::rbx, x86::rdi, x86::rsi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq));
-  }
-
-  if (canRun(instId, x86::mm1, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::mm1, x86::mm2)) dst.append(allocator, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpMm));
-  if (canRun(instId, x86::mm1, x86::mm2, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpMm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::mm5, x86::edi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpGpd));
-  if (canRun(instId, x86::edi, x86::mm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpMm));
-  if (canRun(instId, x86::mm5, x86::xmm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpMm, InstSpec::kOpXmm));
-  if (canRun(instId, x86::xmm5, x86::mm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpMm));
-
-  if (canRun(instId, x86::xmm3, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::xmm3, x86::xmm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm));
-  if (canRun(instId, x86::xmm3, x86::ymm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpYmm));
-  if (canRun(instId, x86::ymm3, x86::xmm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpXmm));
-  if (canRun(instId, x86::ymm3, x86::ymm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm));
-
-  if (canRun(instId, x86::edi, x86::xmm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpXmm));
-  if (canRun(instId, x86::rdi, x86::xmm5)) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpXmm));
-  if (canRun(instId, x86::edi, x86::xmm5, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::rdi, x86::xmm5, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::xmm3, x86::xmm5, x86::edi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpGpd));
-  if (canRun(instId, x86::xmm3, x86::xmm5, x86::rdi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpGpq));
-
-  if (canRun(instId, x86::xmm5, x86::edi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpGpd));
-  if (canRun(instId, x86::xmm5, x86::rdi)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpGpq));
-  if (canRun(instId, x86::xmm5, x86::edi, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpGpd, InstSpec::kOpImm8));
-  if (canRun(instId, x86::xmm5, x86::rdi, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpGpq, InstSpec::kOpImm8));
-
-  if (canRun(instId, x86::xmm3, x86::xmm5, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::xmm3, x86::ymm5, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::ymm3, x86::xmm5, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::ymm3, x86::ymm5, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::xmm3, x86::xmm5, x86::xmm2)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm));
-  if (canRun(instId, x86::ymm3, x86::ymm5, x86::xmm2)) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpXmm));
-  if (canRun(instId, x86::ymm3, x86::ymm5, x86::ymm2)) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm));
-
-  if (canRun(instId, x86::xmm3, x86::xmm5, x86::xmm2, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::ymm3, x86::ymm5, x86::xmm2, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpXmm, InstSpec::kOpImm8));
-  if (canRun(instId, x86::ymm3, x86::ymm5, x86::ymm2, imm(1))) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpImm8));
-
-  if (canRun(instId, x86::xmm3, x86::xmm5, x86::xmm2, x86::xmm6)) dst.append(allocator, InstSpec::pack(InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm, InstSpec::kOpXmm));
-  if (canRun(instId, x86::ymm3, x86::ymm5, x86::ymm2, x86::ymm6)) dst.append(allocator, InstSpec::pack(InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm, InstSpec::kOpYmm));
 }
 
 bool InstBench::isImplicit(uint32_t instId) noexcept {
