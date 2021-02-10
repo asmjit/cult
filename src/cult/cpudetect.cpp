@@ -1,30 +1,8 @@
-#include "./cpudetect.h"
+#include "cpudetect.h"
 
 namespace cult {
 
-inline void cpuid_query(CpuidOut* result, uint32_t inEax, uint32_t inEcx = 0) noexcept {
-#if defined(_MSC_VER)
-  __cpuidex(reinterpret_cast<int*>(result), inEax, inEcx);
-#elif ASMJIT_ARCH_X86 == 32 && defined(__GNUC__)
-  __asm__ __volatile__(
-    "mov %%ebx, %%edi\n"
-    "cpuid\n"
-    "xchg %%edi, %%ebx\n"
-      : "=a"(result->eax), "=D"(result->ebx), "=c"(result->ecx), "=d"(result->edx)
-      : "a"(inEax), "c"(inEcx));
-#elif ASMJIT_ARCH_X86 == 64 && defined(__GNUC__)
-  __asm__ __volatile__(
-    "mov %%rbx, %%rdi\n"
-    "cpuid\n"
-    "xchg %%rdi, %%rbx\n"
-      : "=a"(result->eax), "=D"(result->ebx), "=c"(result->ecx), "=d"(result->edx)
-      : "a"(inEax), "c"(inEcx));
-#else
-  #error "[cult] cpuid_query() - Unsupported compiler"
-#endif
-}
-
-inline void fix_brand_string(char* str) noexcept {
+inline void fix_brand_string(char* str) {
   size_t len = strlen(str);
   while (len && str[len - 1] == ' ') {
     str[len - 1] = '\0';
@@ -32,7 +10,7 @@ inline void fix_brand_string(char* str) noexcept {
   }
 }
 
-CpuDetect::CpuDetect(App* app) noexcept : _app(app) {
+CpuDetect::CpuDetect(App* app) : _app(app) {
   _modelId = 0;
   _familyId = 0;
   _steppingId = 0;
@@ -42,14 +20,14 @@ CpuDetect::CpuDetect(App* app) noexcept : _app(app) {
   ::memset(_brandString , 0, sizeof(_brandString ));
   ::memset(_archCodename, 0, sizeof(_archCodename));
 }
-CpuDetect::~CpuDetect() noexcept {}
+CpuDetect::~CpuDetect() {}
 
-void CpuDetect::run() noexcept {
+void CpuDetect::run() {
   _queryCpuData();
   _queryCpuInfo();
 }
 
-void CpuDetect::_queryCpuData() noexcept {
+void CpuDetect::_queryCpuData() {
   JSONBuilder& json = _app->json();
 
   if (_app->verbose())
@@ -59,8 +37,8 @@ void CpuDetect::_queryCpuData() noexcept {
       .addKey("cpuData")
       .openArray();
 
-  CpuidIn in = { 0 };
-  CpuidOut out = { 0 };
+  CpuUtils::CpuidIn in = { 0 };
+  CpuUtils::CpuidOut out = { 0 };
 
   uint32_t maxEax = 0;
   cpuid_query(&out, in.eax);
@@ -225,7 +203,7 @@ void CpuDetect::_queryCpuData() noexcept {
   fix_brand_string(_brandString);
 }
 
-void CpuDetect::_queryCpuInfo() noexcept {
+void CpuDetect::_queryCpuInfo() {
   // CPU architecture codename.
   const char* codename = "Unknown";
 
@@ -381,17 +359,14 @@ void CpuDetect::_queryCpuInfo() noexcept {
       .closeObject(true);
 }
 
-void CpuDetect::addEntry(const CpuidIn& in, const CpuidOut& out) noexcept {
+void CpuDetect::addEntry(const CpuUtils::CpuidIn& in, const CpuUtils::CpuidOut& out) {
   if (!out.isValid())
     return;
 
   if (_app->verbose())
     printf("  In:%08X Sub:%08X -> EAX:%08X EBX:%08X ECX:%08X EDX:%08X\n", in.eax, in.ecx, out.eax, out.ebx, out.ecx, out.edx);
 
-  CpuidEntry data;
-  data.in = in;
-  data.out = out;
-  _entries.append(_app->allocator(), data);
+  _entries.push_back(CpuUtils::CpuidEntry{in, out});
 
   JSONBuilder& json = _app->json();
   json.beforeRecord()
@@ -405,9 +380,9 @@ void CpuDetect::addEntry(const CpuidIn& in, const CpuidOut& out) noexcept {
       .closeObject();
 }
 
-CpuidOut CpuDetect::entryOf(uint32_t eax, uint32_t ecx) noexcept {
-  CpuidOut out = { 0 };
-  for (const CpuidEntry& entry : _entries) {
+CpuUtils::CpuidOut CpuDetect::entryOf(uint32_t eax, uint32_t ecx) {
+  CpuUtils::CpuidOut out {};
+  for (const CpuUtils::CpuidEntry& entry : _entries) {
     if (entry.in.eax == eax && entry.in.ecx == ecx) {
       out = entry.out;
       break;

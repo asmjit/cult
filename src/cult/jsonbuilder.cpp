@@ -1,13 +1,13 @@
-#include "./jsonbuilder.h"
+#include "jsonbuilder.h"
 
 namespace cult {
 
-JSONBuilder::JSONBuilder(String* dst) noexcept
+JSONBuilder::JSONBuilder(String* dst)
   : _dst(dst),
     _last(kTokenNone),
     _level(0) {}
 
-JSONBuilder& JSONBuilder::openArray() noexcept {
+JSONBuilder& JSONBuilder::openArray() {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -18,7 +18,7 @@ JSONBuilder& JSONBuilder::openArray() noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::closeArray(bool nl) noexcept {
+JSONBuilder& JSONBuilder::closeArray(bool nl) {
   _level--;
   if (nl) {
     _dst->append('\n');
@@ -31,7 +31,7 @@ JSONBuilder& JSONBuilder::closeArray(bool nl) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::openObject() noexcept {
+JSONBuilder& JSONBuilder::openObject() {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -42,7 +42,7 @@ JSONBuilder& JSONBuilder::openObject() noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::closeObject(bool nl) noexcept {
+JSONBuilder& JSONBuilder::closeObject(bool nl) {
   _level--;
   if (nl) {
     _dst->append('\n');
@@ -54,7 +54,7 @@ JSONBuilder& JSONBuilder::closeObject(bool nl) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addKey(const char* str) noexcept {
+JSONBuilder& JSONBuilder::addKey(const char* str) {
   addString(str);
 
   _dst->append(':');
@@ -63,7 +63,7 @@ JSONBuilder& JSONBuilder::addKey(const char* str) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addBool(bool b) noexcept {
+JSONBuilder& JSONBuilder::addBool(bool b) {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -73,7 +73,7 @@ JSONBuilder& JSONBuilder::addBool(bool b) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addInt(int64_t n) noexcept {
+JSONBuilder& JSONBuilder::addInt(int64_t n) {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -83,7 +83,7 @@ JSONBuilder& JSONBuilder::addInt(int64_t n) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addUInt(uint64_t n) noexcept {
+JSONBuilder& JSONBuilder::addUInt(uint64_t n) {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -93,7 +93,7 @@ JSONBuilder& JSONBuilder::addUInt(uint64_t n) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addDouble(double d) noexcept {
+JSONBuilder& JSONBuilder::addDouble(double d) {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -103,7 +103,7 @@ JSONBuilder& JSONBuilder::addDouble(double d) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addDoublef(const char* fmt, double d) noexcept {
+JSONBuilder& JSONBuilder::addDoublef(const char* fmt, double d) {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -113,7 +113,7 @@ JSONBuilder& JSONBuilder::addDoublef(const char* fmt, double d) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addString(const char* str) noexcept {
+JSONBuilder& JSONBuilder::addString(const char* str) {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -123,7 +123,7 @@ JSONBuilder& JSONBuilder::addString(const char* str) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addStringf(const char* fmt, ...) noexcept {
+JSONBuilder& JSONBuilder::addStringf(const char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
 
@@ -137,7 +137,7 @@ JSONBuilder& JSONBuilder::addStringf(const char* fmt, ...) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::alignTo(size_t n) noexcept {
+JSONBuilder& JSONBuilder::alignTo(size_t n) {
   size_t i = _dst->size();
   const char* p = _dst->data();
 
@@ -152,7 +152,7 @@ JSONBuilder& JSONBuilder::alignTo(size_t n) noexcept {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::beforeRecord() noexcept {
+JSONBuilder& JSONBuilder::beforeRecord() {
   if (_last == kTokenValue)
     _dst->append(',');
 

@@ -1,23 +1,20 @@
-#include "./app.h"
-#include "./cpudetect.h"
-#include "./instbench.h"
-#include "./schedutils.h"
+#include <stdlib.h>
+
+#include "app.h"
+#include "cpudetect.h"
+#include "instbench.h"
+#include "schedutils.h"
 
 namespace cult {
 
-App::App(int argc, char* argv[]) noexcept
+App::App(int argc, char* argv[])
   : _cmd(argc, argv),
-    _zone(1024 * 32),
-    _allocator(&_zone),
-    _help(false),
-    _dump(false),
-    _round(true),
-    _verbose(true),
-    _estimate(false),
-    _json(&_output) {
+    _json(&_output) {}
 
-  SchedUtils::setAffinity(0);
+App::~App() {
+}
 
+void App::parseArguments() {
   if (_cmd.hasKey("--help")) _help = true;
   if (_cmd.hasKey("--dump")) _dump = true;
   if (_cmd.hasKey("--quiet")) _verbose = false;
@@ -32,23 +29,35 @@ App::App(int argc, char* argv[]) noexcept
       (ASMJIT_LIBRARY_VERSION >> 16),
       (ASMJIT_LIBRARY_VERSION >> 8) & 0xFFu,
       (ASMJIT_LIBRARY_VERSION >> 0) & 0xFFu);
+    printf("  --help for command line options\n\n");
+  }
 
+  if (help()) {
+    printf("Usage:\n");
+    printf("  --help             - Show help information\n");
+    printf("  --dump             - Dump generated asm to stdout\n");
+    printf("  --quiet            - Quiet mode, no output except final JSON\n");
+    printf("  --estimate         - Estimate only (faster, but less precise)\n");
+    printf("  --no-rounding      - Don't round cycles and latencies\n");
+    printf("  --instruction=name - Only benchmark a particular instruction\n");
+    printf("  --output=file      - Output to file instead of stdout\n");
     printf("\n");
-    printf("Parameters:\n");
-    printf("  --help        - Show help\n");
-    printf("  --dump        - Dump generated asm to stdout\n");
-    printf("  --quiet       - Quiet mode, no output except final JSON\n");
-    printf("  --estimate    - Estimate only (faster, but less precise)\n");
-    printf("  --no-rounding - Don't round cycles and latencies\n");
-    printf("  --output=file - Output to file instead of stdout\n");
-    printf("\n");
+    exit(0);
+  }
+
+  const char* instruction = _cmd.valueOf("--instruction");
+  if (instruction) {
+    _singleInstId = asmjit::InstAPI::stringToInstId(Environment::kArchHost, instruction, strlen(instruction));
+    if (_singleInstId == 0) {
+      printf("The required instruction '%s' was not found in the database\n", instruction);
+      exit(1);
+    }
   }
 }
 
-App::~App() noexcept {
-}
+int App::run() {
+  SchedUtils::setAffinity(0);
 
-int App::run() noexcept {
   _json.openObject();
   _json.beforeRecord()
        .addKey("cult")
@@ -92,9 +101,6 @@ int App::run() noexcept {
 
 int main(int argc, char* argv[]) {
   cult::App app(argc, argv);
-
-  if (app.help())
-    return 0;
-
+  app.parseArguments();
   return app.run();
 }

@@ -1,8 +1,8 @@
 #ifndef _CULT_APP_H
 #define _CULT_APP_H
 
-#include "./globals.h"
-#include "./jsonbuilder.h"
+#include "globals.h"
+#include "jsonbuilder.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -11,18 +11,18 @@ namespace cult {
 
 class CmdLine {
 public:
-  CmdLine(int argc, const char* const* argv) noexcept
+  CmdLine(int argc, const char* const* argv)
     : argc(argc),
       argv(argv) {}
 
-  bool hasKey(const char* key) const noexcept {
+  bool hasKey(const char* key) const {
     for (int i = 0; i < argc; i++)
       if (strcmp(argv[i], key) == 0)
         return true;
     return false;
   }
 
-  const char* valueOf(const char* key) const noexcept {
+  const char* valueOf(const char* key) const {
     size_t keySize = strlen(key);
     size_t argSize = 0;
 
@@ -49,28 +49,25 @@ public:
 
 class App {
 public:
-  App(int argc, char* argv[]) noexcept;
-  ~App() noexcept;
+  App(int argc, char* argv[]);
+  ~App();
 
-  inline const CmdLine& cmdLine() const noexcept { return _cmd; }
-  inline ZoneAllocator* allocator() const noexcept { return const_cast<ZoneAllocator*>(&_allocator); }
+  inline const CmdLine& cmdLine() const { return _cmd; }
+  inline bool help() const { return _help; }
+  inline bool verbose() const { return _verbose; }
+  inline bool dump() const { return _dump; }
+  inline JSONBuilder& json() { return _json; }
 
-  inline bool help() const noexcept { return _help; }
-  inline bool verbose() const noexcept { return _verbose; }
-  inline bool dump() const noexcept { return _dump; }
-  inline JSONBuilder& json() noexcept { return _json; }
-
-  int run() noexcept;
+  void parseArguments();
+  int run();
 
   CmdLine _cmd;
-  Zone _zone;
-  ZoneAllocator _allocator;
-
-  bool _help;
-  bool _dump;
-  bool _round;
-  bool _verbose;
-  bool _estimate;
+  bool _help = false;
+  bool _dump = false;
+  bool _round = true;
+  bool _verbose = true;
+  bool _estimate = false;
+  uint32_t _singleInstId = 0;
 
   String _output;
   JSONBuilder _json;

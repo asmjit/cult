@@ -25,6 +25,8 @@ set(CULT_SRC
   src/cult/basebench.h
   src/cult/cpudetect.cpp
   src/cult/cpudetect.h
+  src/cult/cpuutils.cpp
+  src/cult/cpuutils.h
   src/cult/globals.h
   src/cult/instbench.cpp
   src/cult/instbench.h

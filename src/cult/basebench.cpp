@@ -14,11 +14,11 @@ public:
   Error _err;
 };
 
-BaseBench::BaseBench(App* app) noexcept
+BaseBench::BaseBench(App* app)
   : _app(app),
     _runtime(),
     _cpuInfo(CpuInfo::host()) {}
-BaseBench::~BaseBench() noexcept {}
+BaseBench::~BaseBench() {}
 
 BaseBench::Func BaseBench::compileFunc() {
   FileLogger logger(stdout);
@@ -69,6 +69,7 @@ BaseBench::Func BaseBench::compileFunc() {
   a.mov(mOut, rOut);
   beforeBody(a);
 
+  a.xor_(x86::eax, x86::eax);
   a.cpuid();
   a.rdtsc();
   a.mov(mCyclesLo, x86::eax);
@@ -82,15 +83,12 @@ BaseBench::Func BaseBench::compileFunc() {
     a.rdtscp();
     a.mov(x86::esi, x86::eax);
     a.mov(x86::edi, x86::edx);
+    a.xor_(x86::eax, x86::eax);
     a.cpuid();
   }
-  else if (features().hasSSE2()) {
-    a.lfence();
-    a.rdtsc();
-    a.mov(x86::esi, x86::eax);
-    a.mov(x86::edi, x86::edx);
-  }
   else {
+    if (features().hasSSE2())
+      a.lfence();
     a.rdtsc();
     a.mov(x86::esi, x86::eax);
     a.mov(x86::edi, x86::edx);

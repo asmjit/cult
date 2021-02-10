@@ -1,4 +1,5 @@
-#include "./instbench.h"
+#include "instbench.h"
+#include "cpuutils.h"
 
 #include <set>
 
@@ -136,6 +137,7 @@ public:
   }
 };
 
+// TODO: These require pretty special register pattern - not tested yet.
 static bool isIgnoredInst(uint32_t instId) {
   return instId == x86::Inst::kIdVp4dpwssd ||
          instId == x86::Inst::kIdVp4dpwssds ||
@@ -147,7 +149,11 @@ static bool isIgnoredInst(uint32_t instId) {
          instId == x86::Inst::kIdVp2intersectq;
 }
 
-static bool isSafeGp(uint32_t instId) {
+// Returns true when the instruciton is safe to be benchmarked.
+//
+// There is many general purpose instructions including system ones. We only
+// benchmark those that may appear commonly in user code, but not in kernel.
+static bool isSafeGpInst(uint32_t instId) {
   return instId == x86::Inst::kIdAdc      ||
          instId == x86::Inst::kIdAdcx     ||
          instId == x86::Inst::kIdAdd      ||
@@ -186,10 +192,10 @@ static bool isSafeGp(uint32_t instId) {
          instId == x86::Inst::kIdInc      ||
          instId == x86::Inst::kIdLzcnt    ||
          instId == x86::Inst::kIdMov      ||
+         instId == x86::Inst::kIdMovbe    ||
          instId == x86::Inst::kIdMovsx    ||
          instId == x86::Inst::kIdMovsxd   ||
          instId == x86::Inst::kIdMovzx    ||
-         instId == x86::Inst::kIdMovbe    ||
          instId == x86::Inst::kIdNeg      ||
          instId == x86::Inst::kIdNop      ||
          instId == x86::Inst::kIdNot      ||
@@ -261,6 +267,8 @@ static const char* instSpecOpAsString(uint32_t instSpecOp) {
     case InstSpec::kOpYmm  : return "ymm";
     case InstSpec::kOpZmm  : return "zmm";
 
+    case InstSpec::kOpKReg : return "k";
+
     case InstSpec::kOpImm8 : return "i8";
     case InstSpec::kOpImm16: return "i16";
     case InstSpec::kOpImm32: return "i32";
@@ -304,7 +312,7 @@ static void fillImmArray(Operand* dst, uint32_t count, uint64_t start, uint64_t 
 }
 
 // Round the result (either cycles or latency) to something nicer than `0.8766`.
-static double roundResult(double x) noexcept {
+static double roundResult(double x) {
   double n = double(int(x));
   double f = x - n;
 
@@ -333,28 +341,41 @@ static double roundResult(double x) noexcept {
 // [cult::InstBench]
 // ============================================================================
 
-InstBench::InstBench(App* app) noexcept
+InstBench::InstBench(App* app)
   : BaseBench(app),
     _instId(0),
     _instSpec(),
     _nUnroll(64),
     _nParallel(0) {}
 
-InstBench::~InstBench() noexcept {
+InstBench::~InstBench() {
 }
 
 void InstBench::run() {
   JSONBuilder& json = _app->json();
 
-  if (_app->verbose())
-    printf("Benchmark:\n");
+  uint64_t tsc_freq = CpuUtils::get_tsc_freq();
+
+  if (_app->verbose()) {
+    if (tsc_freq)
+      printf("Detected TSC frequency: %llu\n", (unsigned long long)tsc_freq);
+    printf("Benchmark (latency & reciprocal throughput):\n");
+  }
 
   json.beforeRecord()
       .addKey("instructions")
       .openArray();
 
-  for (uint32_t instId = 1; instId < x86::Inst::_kIdCount; instId++) {
-    ZoneVector<InstSpec> specs;
+  uint32_t instStart = 1;
+  uint32_t instEnd = x86::Inst::_kIdCount;
+
+  if (_app->_singleInstId) {
+    instStart = _app->_singleInstId;
+    instEnd = instStart + 1;
+  }
+
+  for (uint32_t instId = instStart; instId < instEnd; instId++) {
+    std::vector<InstSpec> specs;
     classify(specs, instId);
 
     /*
@@ -388,8 +409,14 @@ void InstBench::run() {
           sb.append(']');
       }
 
-      double lat = testInstruction(instId, instSpec, 0);
-      double rcp = testInstruction(instId, instSpec, 1);
+      double overheadLat = testInstruction(instId, instSpec, 0, true);
+      double overheadRcp = testInstruction(instId, instSpec, 1, true);
+
+      double lat = testInstruction(instId, instSpec, 0, false);
+      double rcp = testInstruction(instId, instSpec, 1, false);
+
+      lat = std::max<double>(lat - overheadLat, 0);
+      rcp = std::max<double>(rcp - overheadRcp, 0);
 
       if (_app->_round) {
         lat = roundResult(lat);
@@ -401,17 +428,15 @@ void InstBench::run() {
         lat = rcp;
 
       if (_app->verbose())
-        printf("  %-38s: Lat:%6.2f Rcp:%6.2f\n", sb.data(), lat, rcp);
+        printf("  %-40s: Lat:%7.2f Rcp:%7.2f\n", sb.data(), lat, rcp);
 
       json.beforeRecord()
           .openObject()
-          .addKey("inst").addString(sb.data()).alignTo(52)
-          .addKey("lat").addDoublef("%6.2f", lat)
-          .addKey("rcp").addDoublef("%6.2f", rcp)
+          .addKey("inst").addString(sb.data()).alignTo(54)
+          .addKey("lat").addDoublef("%7.2f", lat)
+          .addKey("rcp").addDoublef("%7.2f", rcp)
           .closeObject();
     }
-
-    specs.release(_app->allocator());
   }
 
   if (_app->verbose())
@@ -420,16 +445,63 @@ void InstBench::run() {
   json.closeArray(true);
 }
 
-void InstBench::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
+void InstBench::classify(std::vector<InstSpec>& dst, uint32_t instId) {
   using namespace asmjit;
 
   if (isIgnoredInst(instId))
     return;
 
-  std::set<uint64_t> known;
+  // Special cases.
+  if (instId == x86::Inst::kIdCpuid    ||
+      instId == x86::Inst::kIdEmms     ||
+      instId == x86::Inst::kIdFemms    ||
+      instId == x86::Inst::kIdLfence   ||
+      instId == x86::Inst::kIdMfence   ||
+      instId == x86::Inst::kIdRdtsc    ||
+      instId == x86::Inst::kIdRdtscp   ||
+      instId == x86::Inst::kIdSfence   ||
+      instId == x86::Inst::kIdXgetbv   ||
+      instId == x86::Inst::kIdVzeroall ||
+      instId == x86::Inst::kIdVzeroupper) {
+    if (canRun(instId))
+      dst.push_back(InstSpec::pack(0));
+    return;
+  }
 
-  ZoneAllocator* allocator = _app->allocator();
+  if (instId == x86::Inst::kIdCall) {
+    dst.push_back(InstSpec::pack(InstSpec::kOpRel));
+    if (is64Bit())
+      dst.push_back(InstSpec::pack(InstSpec::kOpGpq));
+    else
+      dst.push_back(InstSpec::pack(InstSpec::kOpGpd));
+    return;
+  }
 
+  if (instId == x86::Inst::kIdJmp) {
+    dst.push_back(InstSpec::pack(InstSpec::kOpRel));
+    return;
+  }
+
+  if (instId == x86::Inst::kIdLea) {
+    dst.push_back(InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd));
+    dst.push_back(InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm8));
+    dst.push_back(InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm32));
+    dst.push_back(InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd));
+    dst.push_back(InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm8));
+    dst.push_back(InstSpec::pack(InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpGpd, InstSpec::kOpImm32));
+
+    if (is64Bit()) {
+      dst.push_back(InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq));
+      dst.push_back(InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm8));
+      dst.push_back(InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm32));
+      dst.push_back(InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq));
+      dst.push_back(InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm8));
+      dst.push_back(InstSpec::pack(InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpGpq, InstSpec::kOpImm32));
+    }
+    return;
+  }
+
+  // Common cases based on instruction signatures.
   uint32_t modeMask = 0;
   uint32_t opFilter = x86::InstDB::kOpGpbLo   |
                       x86::InstDB::kOpGpw     |
@@ -459,6 +531,7 @@ void InstBench::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
   const x86::InstDB::InstSignature* iEnd = commonInfo.signatureEnd();
 
   // Iterate over all signatures and build the instruction we want to test.
+  std::set<uint64_t> known;
   for (; instSignature != iEnd; instSignature++) {
     if (!(instSignature->modes & modeMask))
       continue;
@@ -496,7 +569,7 @@ void InstBench::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
             case x86::InstDB::kOpYmm  : reg._initReg(x86::Ymm  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpYmm; vec = true; break;
             case x86::InstDB::kOpZmm  : reg._initReg(x86::Zmm  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpZmm; vec = true; break;
             case x86::InstDB::kOpMm   : reg._initReg(x86::Mm   ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpMm; vec = true; break;
-            case x86::InstDB::kOpKReg : reg._initReg(x86::KReg ::kSignature, 1    ); instSpec[opIndex] = InstSpec::kOpKReg; skip = true; break;
+            case x86::InstDB::kOpKReg : reg._initReg(x86::KReg ::kSignature, 1    ); instSpec[opIndex] = InstSpec::kOpKReg; vec = true; break;
             default:
               printf("[!!] Unknown register operand: OpMask=0x%08X\n", opMask);
               skip = true;
@@ -546,13 +619,13 @@ void InstBench::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
       }
 
       if (!skip) {
-        if (vec || isSafeGp(instId)) {
+        if (vec || isSafeGpInst(instId)) {
           BaseInst baseInst(instId, 0);
           if (_canRun(baseInst, operands, opCount)) {
             InstSpec spec = InstSpec::pack(instSpec[0], instSpec[1], instSpec[2], instSpec[3], instSpec[4], instSpec[5]);
             if (known.find(spec.value) == known.end()) {
               known.insert(spec.value);
-              dst.append(allocator, spec);
+              dst.push_back(spec);
             }
           }
         }
@@ -563,7 +636,7 @@ void InstBench::classify(ZoneVector<InstSpec>& dst, uint32_t instId) {
   }
 }
 
-bool InstBench::isImplicit(uint32_t instId) noexcept {
+bool InstBench::isImplicit(uint32_t instId) {
   const x86::InstDB::InstInfo& instInfo = x86::InstDB::infoById(instId);
   const x86::InstDB::InstSignature* iSig = instInfo.signatureData();
   const x86::InstDB::InstSignature* iEnd = instInfo.signatureEnd();
@@ -577,7 +650,7 @@ bool InstBench::isImplicit(uint32_t instId) noexcept {
   return false;
 }
 
-bool InstBench::_canRun(const BaseInst& inst, const Operand_* operands, uint32_t count) const noexcept {
+bool InstBench::_canRun(const BaseInst& inst, const Operand_* operands, uint32_t count) const {
   using namespace asmjit;
 
   if (inst.id() == x86::Inst::kIdNone)
@@ -596,23 +669,24 @@ bool InstBench::_canRun(const BaseInst& inst, const Operand_* operands, uint32_t
   return true;
 }
 
-uint32_t InstBench::numIterByInstId(uint32_t instId) noexcept {
+uint32_t InstBench::numIterByInstId(uint32_t instId) {
   switch (instId) {
     // Return low number for instructions that are really slow.
     case x86::Inst::kIdCpuid:
     case x86::Inst::kIdRdrand:
     case x86::Inst::kIdRdseed:
-      return 40;
+      return 5;
 
     default:
-      return 1000;
+      return 200;
   }
 }
 
-double InstBench::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t parallel) {
+double InstBench::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t parallel, bool overheadOnly) {
   _instId = instId;
   _instSpec = instSpec;
   _nParallel = parallel ? 6 : 1;
+  _overheadOnly = overheadOnly;
 
   Func func = compileFunc();
   if (!func) {
@@ -624,15 +698,11 @@ double InstBench::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t p
 
   uint32_t nIter = numIterByInstId(_instId);
 
-  uint32_t kOverheadPerIteration = 1; // Assume that each iteration cost an additional 1 cycle.
-  uint32_t kOverheadBeforeLoop = 2;   // Assume that we waste 2 cycles before we enter the inner loop.
-  uint32_t kOverheadPerSingleTest = nIter * kOverheadPerIteration - kOverheadBeforeLoop;
-
   // Consider a significant improvement 0.08 cycles per instruction (0.2 cycles in fast mode).
   uint32_t kSignificantImprovement = uint32_t(double(nIter) * (_app->_estimate ? 0.2 : 0.08));
 
   // If we called the function N times without a significant improvement we terminate the test.
-  uint32_t kMaximumImprovementTries = _app->_estimate ? 1000 : 10000;
+  uint32_t kMaximumImprovementTries = _app->_estimate ? 1000 : 50000;
 
   uint32_t kMaxIterationCount = 1000000;
 
@@ -645,12 +715,6 @@ double InstBench::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t p
   for (uint32_t i = 0; i < kMaxIterationCount; i++) {
     uint64_t n;
     func(nIter, &n);
-
-    // Decrement the estimated overhead caused by the inner loop.
-    if (n > kOverheadPerSingleTest)
-      n -= kOverheadPerSingleTest;
-    else
-      n = 0; // Should never happen.
 
     best = std::min(best, n);
     if (n < previousBest) {
@@ -681,6 +745,8 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   using namespace asmjit;
 
   uint32_t instId = _instId;
+  const x86::InstDB::InstInfo& instInfo = x86::InstDB::infoById(instId);
+
   uint32_t rMask[32] = { 0 };
 
   rMask[x86::Reg::kGroupGp  ] = 0xFF & ~Support::bitMask(x86::Gp::kIdSp, rCnt.id());
@@ -843,14 +909,15 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 
       case InstSpec::kOpXmm0 : fillRegScalar(dst, _nUnroll, x86::xmm0); break;
 
-      case InstSpec::kOpGpb  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp ], x86::RegTraits<x86::Reg::kTypeGpbLo>::kSignature); break;
-      case InstSpec::kOpGpw  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp ], x86::RegTraits<x86::Reg::kTypeGpw>::kSignature); break;
-      case InstSpec::kOpGpd  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp ], x86::RegTraits<x86::Reg::kTypeGpd>::kSignature); break;
-      case InstSpec::kOpGpq  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp ], x86::RegTraits<x86::Reg::kTypeGpq>::kSignature); break;
-      case InstSpec::kOpMm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupMm ], x86::RegTraits<x86::Reg::kTypeMm >::kSignature); break;
-      case InstSpec::kOpXmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec], x86::RegTraits<x86::Reg::kTypeXmm>::kSignature); break;
-      case InstSpec::kOpYmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec], x86::RegTraits<x86::Reg::kTypeYmm>::kSignature); break;
-      case InstSpec::kOpZmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec], x86::RegTraits<x86::Reg::kTypeZmm>::kSignature); break;
+      case InstSpec::kOpGpb  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp  ], x86::RegTraits<x86::Reg::kTypeGpbLo>::kSignature); break;
+      case InstSpec::kOpGpw  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp  ], x86::RegTraits<x86::Reg::kTypeGpw>::kSignature); break;
+      case InstSpec::kOpGpd  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp  ], x86::RegTraits<x86::Reg::kTypeGpd>::kSignature); break;
+      case InstSpec::kOpGpq  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp  ], x86::RegTraits<x86::Reg::kTypeGpq>::kSignature); break;
+      case InstSpec::kOpMm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupMm  ], x86::RegTraits<x86::Reg::kTypeMm >::kSignature); break;
+      case InstSpec::kOpXmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec ], x86::RegTraits<x86::Reg::kTypeXmm>::kSignature); break;
+      case InstSpec::kOpYmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec ], x86::RegTraits<x86::Reg::kTypeYmm>::kSignature); break;
+      case InstSpec::kOpZmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec ], x86::RegTraits<x86::Reg::kTypeZmm>::kSignature); break;
+      case InstSpec::kOpKReg : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupKReg], x86::RegTraits<x86::Reg::kTypeKReg>::kSignature); break;
 
       case InstSpec::kOpImm8 : fillImmArray(dst, _nUnroll, 0, 1    , 15        ); break;
       case InstSpec::kOpImm16: fillImmArray(dst, _nUnroll, 1, 13099, 65535     ); break;
@@ -899,15 +966,18 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   a.test(rCnt, rCnt);
   a.jz(L_End);
 
-  a.align(kAlignCode, 16);
+  a.align(kAlignCode, 64);
   a.bind(L_Body);
 
-  if (instId == x86::Inst::kIdPop)
+  if (instId == x86::Inst::kIdPop && !_overheadOnly)
     a.sub(a.zsp(), stackOperationSize);
 
   switch (instId) {
     case x86::Inst::kIdCall: {
       assert(opCount == 1);
+      if (_overheadOnly)
+        break;
+
       for (uint32_t n = 0; n < _nUnroll; n++) {
         if (_instSpec.get(0) == InstSpec::kOpRel)
           a.call(L_SubFn);
@@ -919,6 +989,9 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 
     case x86::Inst::kIdJmp: {
       assert(opCount == 1);
+      if (_overheadOnly)
+        break;
+
       for (uint32_t n = 0; n < _nUnroll; n++) {
         Label x = a.newLabel();
         a.jmp(x);
@@ -930,6 +1003,8 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     case x86::Inst::kIdDiv:
     case x86::Inst::kIdIdiv: {
       assert(opCount >= 2 && opCount <= 3);
+      if (_overheadOnly)
+        break;
 
       if (opCount == 2) {
         for (uint32_t n = 0; n < _nUnroll; n++) {
@@ -967,6 +1042,8 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     case x86::Inst::kIdMul:
     case x86::Inst::kIdImul: {
       assert(opCount >= 2 && opCount <= 3);
+      if (_overheadOnly)
+        break;
 
       if (opCount == 2) {
         for (uint32_t n = 0; n < _nUnroll; n++) {
@@ -989,6 +1066,8 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 
     case x86::Inst::kIdLea: {
       assert(opCount >= 2 && opCount <= 4);
+      if (_overheadOnly)
+        break;
 
       if (opCount == 2) {
         for (uint32_t n = 0; n < _nUnroll; n++) {
@@ -1017,6 +1096,67 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     // Instructions that don't require special care.
     default: {
       assert(opCount <= 6);
+
+      // Special case for instructions where destination register type doesn't appear anywhere in source.
+      if (!isParallel) {
+        if (opCount >= 2 && o0[0].isReg()) {
+          bool sameKind = false;
+          bool specialInst = false;
+
+          const x86::Reg& dst = o0[0].as<x86::Reg>();
+
+          if (opCount >= 2 && (o1[0].isReg() && o1[0].as<BaseReg>().group() == dst.group()))
+            sameKind = true;
+
+          if (opCount >= 3 && (o2[0].isReg() && o2[0].as<BaseReg>().group() == dst.group()))
+            sameKind = true;
+
+          if (opCount >= 4 && (o3[0].isReg() && o3[0].as<BaseReg>().group() == dst.group()))
+            sameKind = true;
+
+          // These have the same kind in 'reg, reg' case, however, some registers are fixed so we workaround it this way.
+          specialInst = (instId == x86::Inst::kIdCdq ||
+                         instId == x86::Inst::kIdCdqe ||
+                         instId == x86::Inst::kIdCqo ||
+                         instId == x86::Inst::kIdCwd ||
+                         instId == x86::Inst::kIdPop ||
+                         instId == x86::Inst::kIdRol ||
+                         instId == x86::Inst::kIdRor ||
+                         instId == x86::Inst::kIdSar ||
+                         instId == x86::Inst::kIdShl ||
+                         instId == x86::Inst::kIdShr);
+
+          if (!sameKind || specialInst) {
+            for (uint32_t n = 0; n < _nUnroll; n++) {
+              if (!_overheadOnly) {
+                Operand ops[6] = { o0[0], o1[0], o2[0], o3[0], o4[0], o5[0] };
+                a.emitOpArray(instId, ops, opCount);
+              }
+
+              if (x86::Reg::isGp(dst)) {
+                a.add(x86::eax, dst.as<x86::Gp>().r32());
+              }
+              else if (x86::Reg::isKReg(dst)) {
+                a.kaddb(x86::k7, dst.as<x86::KReg>(), dst.as<x86::KReg>());
+              }
+              else if (x86::Reg::isMm(dst)) {
+                a.paddb(x86::mm7, dst.as<x86::Mm>());
+              }
+              else if (x86::Reg::isXmm(dst) && !instInfo.isVexOrEvex()) {
+                a.paddb(x86::xmm7, dst.as<x86::Xmm>());
+              }
+              else if (x86::Reg::isVec(dst)) {
+                a.vpaddb(x86::xmm7, dst.as<x86::Vec>().xmm(), dst.as<x86::Vec>().xmm());
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      if (_overheadOnly)
+        break;
+
       if (opCount == 0) {
         for (uint32_t n = 0; n < _nUnroll; n++)
           a.emit(instId);
@@ -1055,7 +1195,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     }
   }
 
-  if (instId == x86::Inst::kIdPush)
+  if (instId == x86::Inst::kIdPush && !_overheadOnly)
     a.add(a.zsp(), stackOperationSize);
 
   a.sub(rCnt, 1);

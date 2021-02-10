@@ -1,7 +1,9 @@
 #ifndef _CULT_INSTBENCH_H
 #define _CULT_INSTBENCH_H
 
-#include "./basebench.h"
+#include <vector>
+
+#include "basebench.h"
 
 namespace cult {
 
@@ -46,17 +48,17 @@ struct InstSpec {
     kOpImm64
   };
 
-  static inline InstSpec none() noexcept {
+  static inline InstSpec none() {
     return InstSpec { 0 };
   }
 
-  static inline InstSpec pack(uint32_t o0, uint32_t o1 = 0, uint32_t o2 = 0, uint32_t o3 = 0, uint32_t o4 = 0, uint32_t o5 = 0) noexcept {
+  static inline InstSpec pack(uint32_t o0, uint32_t o1 = 0, uint32_t o2 = 0, uint32_t o3 = 0, uint32_t o4 = 0, uint32_t o5 = 0) {
     return InstSpec { uint64_t(o0) | uint64_t(o1 << 8) | uint64_t(o2 << 16) | uint64_t(o3 << 24) | (uint64_t(o4) << 32) | (uint64_t(o5) << 40) };
   }
 
-  inline bool isValid() const noexcept { return value != 0; }
+  inline bool isValid() const { return value != 0; }
 
-  inline uint32_t count() const noexcept {
+  inline uint32_t count() const {
     uint32_t i = 0;
     uint64_t v = value;
     while (v & 0xFF) {
@@ -66,12 +68,12 @@ struct InstSpec {
     return i;
   }
 
-  inline uint32_t get(size_t index) const noexcept {
+  inline uint32_t get(size_t index) const {
     assert(index < 6);
     return uint32_t((value >> (index * 8)) & 0xFF);
   }
 
-  static inline bool isImplicitOp(uint32_t op) noexcept {
+  static inline bool isImplicitOp(uint32_t op) {
     return (op >= kOpAl && op <= kOpRdx) || op == kOpXmm0;
   }
 
@@ -86,50 +88,50 @@ class InstBench : public BaseBench {
 public:
   typedef void (*Func)(uint32_t nIter, uint64_t* out);
 
-  InstBench(App* app) noexcept;
-  virtual ~InstBench() noexcept;
+  InstBench(App* app);
+  virtual ~InstBench();
 
-  double testInstruction(uint32_t instId, InstSpec instSpec, uint32_t parallel);
-  void classify(ZoneVector<InstSpec>& dst, uint32_t instId);
+  void classify(std::vector<InstSpec>& dst, uint32_t instId);
+  double testInstruction(uint32_t instId, InstSpec instSpec, uint32_t parallel, bool overheadOnly);
 
-  inline bool is64Bit() const noexcept {
+  inline bool is64Bit() const {
     return Environment::kArchHost == Environment::kArchX64;
   }
 
-  bool isImplicit(uint32_t instId) noexcept;
+  bool isImplicit(uint32_t instId);
 
-  uint32_t numIterByInstId(uint32_t instId) noexcept;
+  uint32_t numIterByInstId(uint32_t instId);
 
-  inline bool isMMX(uint32_t instId, InstSpec spec) noexcept {
+  inline bool isMMX(uint32_t instId, InstSpec spec) {
     return spec.get(0) == InstSpec::kOpMm || spec.get(1) == InstSpec::kOpMm;
   }
 
-  inline bool isVec(uint32_t instId, InstSpec spec) noexcept {
+  inline bool isVec(uint32_t instId, InstSpec spec) {
     const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && !isMMX(instId, spec);
   }
 
-  inline bool isSSE(uint32_t instId, InstSpec spec) noexcept {
+  inline bool isSSE(uint32_t instId, InstSpec spec) {
     const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && !isMMX(instId, spec) && !inst.isVex() && !inst.isEvex();
   }
 
-  inline bool isAVX(uint32_t instId, InstSpec spec) noexcept {
+  inline bool isAVX(uint32_t instId, InstSpec spec) {
     const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && (inst.isVex() || inst.isEvex());
   }
 
-  inline bool canRun(uint32_t instId) const noexcept {
+  inline bool canRun(uint32_t instId) const {
     return _canRun(BaseInst(instId), nullptr, 0);
   }
 
   template<typename... ArgsT>
-  inline bool canRun(uint32_t instId, ArgsT&&... args) const noexcept {
+  inline bool canRun(uint32_t instId, ArgsT&&... args) const {
     Operand_ ops[] = { args... };
     return _canRun(BaseInst(instId), ops, sizeof...(args));
   }
 
-  bool _canRun(const BaseInst& inst, const Operand_* operands, uint32_t count) const noexcept;
+  bool _canRun(const BaseInst& inst, const Operand_* operands, uint32_t count) const;
 
   void run() override;
   void beforeBody(x86::Assembler& a) override;
@@ -140,6 +142,7 @@ public:
   InstSpec _instSpec;
   uint32_t _nUnroll;
   uint32_t _nParallel;
+  bool _overheadOnly;
 };
 
 } // cult namespace

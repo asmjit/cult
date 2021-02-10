@@ -1,7 +1,7 @@
 #ifndef _CULT_SCHEDUTILS_H
 #define _CULT_SCHEDUTILS_H
 
-#include "./globals.h"
+#include "globals.h"
 
 namespace cult {
 namespace SchedUtils {

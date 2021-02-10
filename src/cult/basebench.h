@@ -1,7 +1,7 @@
 #ifndef _CULT_BASEBENCH_H
 #define _CULT_BASEBENCH_H
 
-#include "./app.h"
+#include "app.h"
 
 namespace cult {
 
@@ -9,10 +9,10 @@ class BaseBench {
 public:
   typedef void (*Func)(uint32_t nIter, uint64_t* out);
 
-  BaseBench(App* app) noexcept;
-  virtual ~BaseBench() noexcept;
+  BaseBench(App* app);
+  virtual ~BaseBench();
 
-  inline const x86::Features& features() const noexcept { return _cpuInfo.features().as<x86::Features>(); }
+  inline const x86::Features& features() const { return _cpuInfo.features().as<x86::Features>(); }
 
   Func compileFunc();
   void releaseFunc(Func func);
