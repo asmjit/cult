@@ -40,3 +40,7 @@ add_executable(cult ${CULT_SRC})
 target_link_libraries(cult AsmJit::AsmJit)
 target_compile_features(cult PUBLIC cxx_std_11)
 set_property(TARGET cult PROPERTY CXX_VISIBILITY_PRESET hidden)
+
+if (WIN32)
+  target_compile_definitions(cult PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()

@@ -1,0 +1,70 @@
+name: "Build"
+on:
+  push:
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { title: "linux"         , os: "ubuntu-latest" , cc: "gcc"     , arch: "x64", build_type: "Release", problem_matcher: "cpp" }
+          - { title: "windows"       , os: "windows-latest", cc: "vs2019"  , arch: "x64", build_type: "Release", problem_matcher: "cpp" }
+          - { title: "macos"         , os: "macos-latest"  , cc: "clang"   , arch: "x64", build_type: "Release", problem_matcher: "cpp" }
+
+    name: "${{matrix.title}} (${{matrix.cc}}, ${{matrix.arch}}, ${{matrix.build_type}})"
+    runs-on: "${{matrix.os}}"
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v2
+        with:
+          path: "source"
+
+      - name: "Checkout asmjit"
+        run: git clone https://github.com/asmjit/asmjit.git asmjit --depth=1
+
+      - name: "Checkout build-actions"
+        run: git clone https://github.com/build-actions/build-actions.git build-actions --depth=1
+
+      - name: "Python"
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.x"
+
+      - name: "Prepare"
+        run: python build-actions/action.py
+                    --step=prepare
+                    --compiler=${{matrix.cc}}
+                    --diagnostics=${{matrix.diagnostics}}
+                    --architecture=${{matrix.arch}}
+
+      - name: "Configure"
+        run: python build-actions/action.py
+                    --step=configure
+                    --config=source/.github/workflows/build-config.json
+                    --source-dir=source
+                    --compiler=${{matrix.cc}}
+                    --diagnostics=${{matrix.diagnostics}}
+                    --architecture=${{matrix.arch}}
+                    --build-type=${{matrix.build_type}}
+                    --build-defs=${{matrix.defs}}
+                    --problem-matcher=${{matrix.problem_matcher}}
+
+      - name: "Build"
+        run: python build-actions/action.py --step=build
+
+      - name: "Test"
+        run: python build-actions/action.py --step=test
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: "cult-${{matrix.title}}"
+          path: |
+            build/cult
+            build/Release/cult.exe

@@ -6,6 +6,7 @@
 #define CULT_VERSION_MICRO 1
 
 #if defined(_WIN32)
+  #define NOMINMAX
   #include <windows.h>
 #else
   // As it seems that `pthread_setaffinity_np` on Linux is only available

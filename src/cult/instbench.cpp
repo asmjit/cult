@@ -675,10 +675,10 @@ uint32_t InstBench::numIterByInstId(uint32_t instId) {
     case x86::Inst::kIdCpuid:
     case x86::Inst::kIdRdrand:
     case x86::Inst::kIdRdseed:
-      return 5;
+      return 4;
 
     default:
-      return 200;
+      return 160;
   }
 }
 
