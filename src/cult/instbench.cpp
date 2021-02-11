@@ -1119,12 +1119,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
                          instId == x86::Inst::kIdCdqe ||
                          instId == x86::Inst::kIdCqo ||
                          instId == x86::Inst::kIdCwd ||
-                         instId == x86::Inst::kIdPop ||
-                         instId == x86::Inst::kIdRol ||
-                         instId == x86::Inst::kIdRor ||
-                         instId == x86::Inst::kIdSar ||
-                         instId == x86::Inst::kIdShl ||
-                         instId == x86::Inst::kIdShr);
+                         instId == x86::Inst::kIdPop);
 
           if (!sameKind || specialInst) {
             for (uint32_t n = 0; n < _nUnroll; n++) {
@@ -1133,21 +1128,42 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
                 a.emitOpArray(instId, ops, opCount);
               }
 
-              if (x86::Reg::isGp(dst)) {
-                a.add(x86::eax, dst.as<x86::Gp>().r32());
-              }
-              else if (x86::Reg::isKReg(dst)) {
-                a.kaddb(x86::k7, dst.as<x86::KReg>(), dst.as<x86::KReg>());
-              }
-              else if (x86::Reg::isMm(dst)) {
-                a.paddb(x86::mm7, dst.as<x86::Mm>());
-              }
-              else if (x86::Reg::isXmm(dst) && !instInfo.isVexOrEvex()) {
-                a.paddb(x86::xmm7, dst.as<x86::Xmm>());
-              }
-              else if (x86::Reg::isVec(dst)) {
-                a.vpaddb(x86::xmm7, dst.as<x86::Vec>().xmm(), dst.as<x86::Vec>().xmm());
-              }
+              auto emitSequencialOp = [&](const BaseReg& reg, bool isDst) {
+                if (x86::Reg::isGp(reg)) {
+                  if (isDst)
+                    a.add(x86::eax, reg.as<x86::Gp>().r32());
+                  else
+                    a.add(reg.as<x86::Gp>().r32(), reg.as<x86::Gp>().r32());
+                }
+                else if (x86::Reg::isKReg(reg)) {
+                  if (isDst)
+                    a.kaddb(x86::k7, x86::k7, reg.as<x86::KReg>());
+                  else
+                    a.kaddb(reg.as<x86::KReg>(), x86::k7, reg.as<x86::KReg>());
+                }
+                else if (x86::Reg::isMm(reg)) {
+                  if (isDst)
+                    a.paddb(x86::mm7, reg.as<x86::Mm>());
+                  else
+                    a.paddb(reg.as<x86::Mm>(), reg.as<x86::Mm>());
+                }
+                else if (x86::Reg::isXmm(reg) && !instInfo.isVexOrEvex()) {
+                  if (isDst)
+                    a.paddb(x86::xmm7, reg.as<x86::Xmm>());
+                  else
+                    a.paddb(reg.as<x86::Xmm>(), reg.as<x86::Xmm>());
+                }
+                else if (x86::Reg::isVec(reg)) {
+                  if (isDst)
+                    a.vpaddb(x86::xmm7, x86::xmm7, reg.as<x86::Vec>().xmm());
+                  else
+                    a.vpaddb(reg.as<x86::Vec>().xmm(), x86::xmm7, reg.as<x86::Vec>().xmm());
+                }
+              };
+
+              emitSequencialOp(dst, true);
+              if (o1[0].isReg())
+                emitSequencialOp(o1[0].as<BaseReg>(), false);
             }
             break;
           }
