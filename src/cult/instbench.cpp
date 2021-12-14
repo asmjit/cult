@@ -12,84 +12,65 @@ public:
 
   const InstSignature* _instSignature;
   const OpSignature* _opSigArray[asmjit::Globals::kMaxOpCount];
-  uint32_t _opMaskArray[asmjit::Globals::kMaxOpCount];
-  uint32_t _memMaskArray[asmjit::Globals::kMaxOpCount];
+  x86::InstDB::OpFlags _opMaskArray[asmjit::Globals::kMaxOpCount];
   uint32_t _opCount;
-  uint32_t _filter;
+  x86::InstDB::OpFlags _filter;
   bool _isValid;
 
-  static constexpr uint32_t kMaxOpCount = 6;
+  static constexpr uint32_t kMaxOpCount = Globals::kMaxOpCount;
 
-  static constexpr uint32_t kMemFilter =
-    x86::InstDB::kMemOpAny   |
-    x86::InstDB::kMemOpM8    |
-    x86::InstDB::kMemOpM16   |
-    x86::InstDB::kMemOpM32   |
-    x86::InstDB::kMemOpM48   |
-    x86::InstDB::kMemOpM64   |
-    x86::InstDB::kMemOpM80   |
-    x86::InstDB::kMemOpM128  |
-    x86::InstDB::kMemOpM256  |
-    x86::InstDB::kMemOpM512  |
-    x86::InstDB::kMemOpM1024 |
-    x86::InstDB::kMemOpVm32x |
-    x86::InstDB::kMemOpVm32y |
-    x86::InstDB::kMemOpVm32z |
-    x86::InstDB::kMemOpVm64x |
-    x86::InstDB::kMemOpVm64y |
-    x86::InstDB::kMemOpVm64z ;
-
+  static constexpr x86::InstDB::OpFlags kDefaultFilter =
+    x86::InstDB::OpFlags::kRegMask |
+    x86::InstDB::OpFlags::kMemMask |
+    x86::InstDB::OpFlags::kVmMask  |
+    x86::InstDB::OpFlags::kImmMask |
+    x86::InstDB::OpFlags::kRelMask ;
 
   inline InstSignatureIterator() { reset(); }
-  inline InstSignatureIterator(const InstSignature* instSignature, uint32_t filter = 0xFFFFFFFFu) { init(instSignature, filter); }
+  inline InstSignatureIterator(const InstSignature* instSignature, x86::InstDB::OpFlags filter = kDefaultFilter) { init(instSignature, filter); }
   inline InstSignatureIterator(const InstSignatureIterator& other) { init(other); }
 
   inline void reset() { ::memset(this, 0, sizeof(*this)); }
   inline void init(const InstSignatureIterator& other) { ::memcpy(this, &other, sizeof(*this)); }
 
-  void init(const InstSignature* instSignature, uint32_t filter = 0xFFFFFFFFu) {
+  void init(const InstSignature* instSignature, x86::InstDB::OpFlags filter = kDefaultFilter) {
     const OpSignature* opSigArray = asmjit::x86::InstDB::_opSignatureTable;
-    uint32_t opCount = instSignature->opCount;
+    uint32_t opCount = instSignature->opCount();
 
     _instSignature = instSignature;
     _opCount = opCount;
     _filter = filter;
 
     uint32_t i;
-    uint32_t flags = 0u;
+    x86::InstDB::OpFlags flags = x86::InstDB::OpFlags::kNone;
 
     for (i = 0; i < opCount; i++) {
-      const OpSignature* opSig = &opSigArray[instSignature->operands[i]];
-      flags = opSig->opFlags & _filter;
-      if (!flags)
-        break;
-      _opSigArray[i] = opSig;
-      _opMaskArray[i] = asmjit::Support::blsi(flags);
+      const OpSignature& opSig = instSignature->opSignature(i);
+      flags = opSig.flags() & _filter;
 
-      if (opSig->memFlags & kMemFilter)
-        _memMaskArray[i] = asmjit::Support::blsi(opSig->memFlags & kMemFilter) | (opSig->memFlags & ~kMemFilter);
-      else
-        _memMaskArray[i] = 0;
+      if (flags == x86::InstDB::OpFlags::kNone)
+        break;
+
+      _opSigArray[i] = &opSig;
+      _opMaskArray[i] = x86::InstDB::OpFlags(asmjit::Support::blsi(uint64_t(flags)));
     }
 
     while (i < kMaxOpCount) {
       _opSigArray[i] = &opSigArray[0];
-      _opMaskArray[i] = 0u;
-      _memMaskArray[i] = 0u;
+      _opMaskArray[i] = x86::InstDB::OpFlags::kNone;
       i++;
     }
 
-    _isValid = opCount == 0 || flags != 0;
+    _isValid = opCount == 0 || flags != x86::InstDB::OpFlags::kNone;
   }
 
   inline bool isValid() const { return _isValid; }
   inline uint32_t opCount() const { return _opCount; }
 
-  inline const uint32_t* opMaskArray() const { return _opMaskArray; }
+  inline const x86::InstDB::OpFlags* opMaskArray() const { return _opMaskArray; }
   inline const OpSignature* const* opSigArray() const { return _opSigArray; }
 
-  inline uint32_t opMask(uint32_t i) const { return _opMaskArray[i]; }
-  inline uint32_t memMask(uint32_t i) const { return _memMaskArray[i]; }
+  inline x86::InstDB::OpFlags opMask(uint32_t i) const { return _opMaskArray[i]; }
   inline const OpSignature* opSig(uint32_t i) const { return _opSigArray[i]; }
 
   bool next() {
@@ -100,45 +81,26 @@ public:
         return false;
       }
 
-      // Iterate over MemFlags.
-      if (_memMaskArray[i]) {
-        uint32_t prevBit = _memMaskArray[i] & kMemFilter;
-        uint32_t allFlags = _opSigArray[i]->memFlags;
-
-        uint32_t bitsToClear = prevBit | (prevBit - 1u);
-        uint32_t remainingBits = allFlags & kMemFilter & ~bitsToClear;
-
-        if (remainingBits) {
-          _memMaskArray[i] = asmjit::Support::blsi(remainingBits) | (allFlags & ~kMemFilter);
-          return true;
-        }
-        else {
-          _memMaskArray[i] = asmjit::Support::blsi(allFlags & kMemFilter) | (allFlags & ~kMemFilter);
-        }
-      }
-
       // Iterate over OpFlags.
-      {
-        uint32_t prevBit = _opMaskArray[i];
-        uint32_t allFlags = _opSigArray[i]->opFlags & _filter;
+      x86::InstDB::OpFlags prevBit = _opMaskArray[i];
+      x86::InstDB::OpFlags allFlags = _opSigArray[i]->flags() & _filter;
 
-        uint32_t bitsToClear = prevBit | (prevBit - 1u);
-        uint32_t remainingBits = allFlags & ~bitsToClear;
+      x86::InstDB::OpFlags bitsToClear = (x86::InstDB::OpFlags)(uint64_t(prevBit) | (uint64_t(prevBit) - 1u));
+      x86::InstDB::OpFlags remainingBits = allFlags & ~bitsToClear;
 
-        if (remainingBits) {
-          _opMaskArray[i] = asmjit::Support::blsi(remainingBits);
-          return true;
-        }
-        else {
-          _opMaskArray[i--] = asmjit::Support::blsi(allFlags);
-        }
+      if (remainingBits != x86::InstDB::OpFlags::kNone) {
+        _opMaskArray[i] = (x86::InstDB::OpFlags)asmjit::Support::blsi(uint64_t(remainingBits));
+        return true;
+      }
+      else {
+        _opMaskArray[i--] = (x86::InstDB::OpFlags)asmjit::Support::blsi(uint64_t(allFlags));
       }
     }
   }
 };
 
 // TODO: These require pretty special register pattern - not tested yet.
-static bool isIgnoredInst(uint32_t instId) {
+static bool isIgnoredInst(InstId instId) {
   return instId == x86::Inst::kIdVp4dpwssd ||
          instId == x86::Inst::kIdVp4dpwssds ||
          instId == x86::Inst::kIdV4fmaddps ||
@@ -153,7 +115,7 @@ static bool isIgnoredInst(uint32_t instId) {
 //
 // There is many general purpose instructions including system ones. We only
 // benchmark those that may appear commonly in user code, but not in kernel.
-static bool isSafeGpInst(uint32_t instId) {
+static bool isSafeGpInst(InstId instId) {
   return instId == x86::Inst::kIdAdc      ||
          instId == x86::Inst::kIdAdcx     ||
          instId == x86::Inst::kIdAdd      ||
@@ -297,7 +259,7 @@ static void fillRegArray(Operand* dst, uint32_t count, uint32_t rStart, uint32_t
 
   uint32_t rId = rStart % rIdCount;
   for (uint32_t i = 0; i < count; i++) {
-    dst[i] = BaseReg::fromSignatureAndId(rSign, rIdArray[rId]);
+    dst[i] = BaseReg(OperandSignature{rSign}, rIdArray[rId]);
     rId = (rId + rInc) % rIdCount;
   }
 }
@@ -374,7 +336,7 @@ void InstBench::run() {
     instEnd = instStart + 1;
   }
 
-  for (uint32_t instId = instStart; instId < instEnd; instId++) {
+  for (InstId instId = instStart; instId < instEnd; instId++) {
     std::vector<InstSpec> specs;
     classify(specs, instId);
 
@@ -394,7 +356,7 @@ void InstBench::run() {
       if (instId == x86::Inst::kIdCall)
         sb.append("call+ret");
       else
-        InstAPI::instIdToString(Environment::kArchHost, instId, sb);
+        InstAPI::instIdToString(Arch::kHost, instId, sb);
 
       for (uint32_t i = 0; i < opCount; i++) {
         if (i == 0)
@@ -445,7 +407,7 @@ void InstBench::run() {
   json.closeArray(true);
 }
 
-void InstBench::classify(std::vector<InstSpec>& dst, uint32_t instId) {
+void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
   using namespace asmjit;
 
   if (isIgnoredInst(instId))
@@ -502,26 +464,25 @@ void InstBench::classify(std::vector<InstSpec>& dst, uint32_t instId) {
   }
 
   // Common cases based on instruction signatures.
-  uint32_t modeMask = 0;
-  uint32_t opFilter = x86::InstDB::kOpGpbLo   |
-                      x86::InstDB::kOpGpw     |
-                      x86::InstDB::kOpGpd     |
-                      x86::InstDB::kOpGpq     |
-                      x86::InstDB::kOpXmm     |
-                      x86::InstDB::kOpYmm     |
-                      x86::InstDB::kOpZmm     |
-                      x86::InstDB::kOpMm      |
-                      x86::InstDB::kOpKReg    |
-                      x86::InstDB::kOpMem     |
-                      x86::InstDB::kOpVm      |
-                      x86::InstDB::kOpAllImm  ;
+  x86::InstDB::Mode mode = x86::InstDB::Mode::kNone;
+  x86::InstDB::OpFlags opFilter =
+    x86::InstDB::OpFlags::kRegGpbLo |
+    x86::InstDB::OpFlags::kRegGpw   |
+    x86::InstDB::OpFlags::kRegGpd   |
+    x86::InstDB::OpFlags::kRegGpq   |
+    x86::InstDB::OpFlags::kRegXmm   |
+    x86::InstDB::OpFlags::kRegYmm   |
+    x86::InstDB::OpFlags::kRegZmm   |
+    x86::InstDB::OpFlags::kRegMm    |
+    x86::InstDB::OpFlags::kRegKReg  |
+    x86::InstDB::OpFlags::kImmMask  ;
 
-  if (Environment::kArchHost == Environment::kArchX86) {
-    modeMask = x86::InstDB::kModeX86;
-    opFilter &= ~x86::InstDB::kOpGpq;
+  if (Arch::kHost == Arch::kX86) {
+    mode = x86::InstDB::Mode::kX86;
+    opFilter &= ~x86::InstDB::OpFlags::kRegGpq;
   }
   else {
-    modeMask = x86::InstDB::kModeX64;
+    mode = x86::InstDB::Mode::kX64;
   }
 
   const x86::InstDB::InstInfo& instInfo = x86::InstDB::infoById(instId);
@@ -533,7 +494,7 @@ void InstBench::classify(std::vector<InstSpec>& dst, uint32_t instId) {
   // Iterate over all signatures and build the instruction we want to test.
   std::set<uint64_t> known;
   for (; instSignature != iEnd; instSignature++) {
-    if (!(instSignature->modes & modeMask))
+    if (!instSignature->supportsMode(mode))
       continue;
 
     InstSignatureIterator it(instSignature, opFilter);
@@ -547,45 +508,43 @@ void InstBench::classify(std::vector<InstSpec>& dst, uint32_t instId) {
       uint32_t immCount = 0;
 
       for (uint32_t opIndex = 0; opIndex < opCount; opIndex++) {
-        uint32_t opMask = it.opMask(opIndex);
-        uint32_t memMask = it.memMask(opIndex);
-
+        x86::InstDB::OpFlags opFlags = it.opMask(opIndex);
         const x86::InstDB::OpSignature* opSig = it.opSig(opIndex);
 
-        if (opMask & x86::InstDB::kOpAllRegs) {
+        if (Support::test(opFlags, x86::InstDB::OpFlags::kRegMask)) {
           x86::Reg reg;
           uint32_t regId = 0;
 
-          if (Support::isPowerOf2(opSig->regMask))
-            regId = Support::ctz(opSig->regMask);
+          if (Support::isPowerOf2(opSig->regMask()))
+            regId = Support::ctz(opSig->regMask());
 
-          switch (opMask) {
-            case x86::InstDB::kOpGpbLo: reg._initReg(x86::GpbLo::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpb; break;
-            case x86::InstDB::kOpGpbHi: reg._initReg(x86::GpbHi::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpb; break;
-            case x86::InstDB::kOpGpw  : reg._initReg(x86::Gpw  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpw; break;
-            case x86::InstDB::kOpGpd  : reg._initReg(x86::Gpd  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpd; break;
-            case x86::InstDB::kOpGpq  : reg._initReg(x86::Gpq  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpGpq; break;
-            case x86::InstDB::kOpXmm  : reg._initReg(x86::Xmm  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpXmm; vec = true; break;
-            case x86::InstDB::kOpYmm  : reg._initReg(x86::Ymm  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpYmm; vec = true; break;
-            case x86::InstDB::kOpZmm  : reg._initReg(x86::Zmm  ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpZmm; vec = true; break;
-            case x86::InstDB::kOpMm   : reg._initReg(x86::Mm   ::kSignature, regId); instSpec[opIndex] = InstSpec::kOpMm; vec = true; break;
-            case x86::InstDB::kOpKReg : reg._initReg(x86::KReg ::kSignature, 1    ); instSpec[opIndex] = InstSpec::kOpKReg; vec = true; break;
+          switch (opFlags) {
+            case x86::InstDB::OpFlags::kRegGpbLo: reg._initReg(OperandSignature{x86::GpbLo::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpb; break;
+            case x86::InstDB::OpFlags::kRegGpbHi: reg._initReg(OperandSignature{x86::GpbHi::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpb; break;
+            case x86::InstDB::OpFlags::kRegGpw  : reg._initReg(OperandSignature{x86::Gpw  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpw; break;
+            case x86::InstDB::OpFlags::kRegGpd  : reg._initReg(OperandSignature{x86::Gpd  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpd; break;
+            case x86::InstDB::OpFlags::kRegGpq  : reg._initReg(OperandSignature{x86::Gpq  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpq; break;
+            case x86::InstDB::OpFlags::kRegXmm  : reg._initReg(OperandSignature{x86::Xmm  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpXmm; vec = true; break;
+            case x86::InstDB::OpFlags::kRegYmm  : reg._initReg(OperandSignature{x86::Ymm  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpYmm; vec = true; break;
+            case x86::InstDB::OpFlags::kRegZmm  : reg._initReg(OperandSignature{x86::Zmm  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpZmm; vec = true; break;
+            case x86::InstDB::OpFlags::kRegMm   : reg._initReg(OperandSignature{x86::Mm   ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpMm; vec = true; break;
+            case x86::InstDB::OpFlags::kRegKReg : reg._initReg(OperandSignature{x86::KReg ::kSignature}, 1    ); instSpec[opIndex] = InstSpec::kOpKReg; vec = true; break;
             default:
-              printf("[!!] Unknown register operand: OpMask=0x%08X\n", opMask);
+              printf("[!!] Unknown register operand: OpMask=0x%016llX\n", (unsigned long long)opFlags);
               skip = true;
               break;
           }
 
-          if (Support::isPowerOf2(opSig->regMask)) {
-            switch (opMask) {
-              case x86::InstDB::kOpGpbLo: instSpec[opIndex] = InstSpec::kOpAl + regId; break;
-              case x86::InstDB::kOpGpbHi: instSpec[opIndex] = InstSpec::kOpAl + regId; break;
-              case x86::InstDB::kOpGpw  : instSpec[opIndex] = InstSpec::kOpAx + regId; break;
-              case x86::InstDB::kOpGpd  : instSpec[opIndex] = InstSpec::kOpEax + regId; break;
-              case x86::InstDB::kOpGpq  : instSpec[opIndex] = InstSpec::kOpRax + regId; break;
-              case x86::InstDB::kOpXmm  : instSpec[opIndex] = InstSpec::kOpXmm0; break;
+          if (Support::isPowerOf2(opSig->regMask())) {
+            switch (opFlags) {
+              case x86::InstDB::OpFlags::kRegGpbLo: instSpec[opIndex] = InstSpec::kOpAl + regId; break;
+              case x86::InstDB::OpFlags::kRegGpbHi: instSpec[opIndex] = InstSpec::kOpAl + regId; break;
+              case x86::InstDB::OpFlags::kRegGpw  : instSpec[opIndex] = InstSpec::kOpAx + regId; break;
+              case x86::InstDB::OpFlags::kRegGpd  : instSpec[opIndex] = InstSpec::kOpEax + regId; break;
+              case x86::InstDB::OpFlags::kRegGpq  : instSpec[opIndex] = InstSpec::kOpRax + regId; break;
+              case x86::InstDB::OpFlags::kRegXmm  : instSpec[opIndex] = InstSpec::kOpXmm0; break;
               default:
-                printf("[!!] Unknown register operand: OpMask=0x%08X\n", opMask);
+                printf("[!!] Unknown register operand: OpMask=0x%016llX\n", (unsigned long long)opFlags);
                 skip = true;
                 break;
             }
@@ -594,21 +553,21 @@ void InstBench::classify(std::vector<InstSpec>& dst, uint32_t instId) {
 
           operands[opIndex] = reg;
         }
-        else if (opMask & x86::InstDB::kOpMem) {
+        else if (Support::test(opFlags, x86::InstDB::OpFlags::kMemMask)) {
           // TODO:
           skip = true;
         }
-        else if (opMask & x86::InstDB::kOpVm) {
+        else if (Support::test(opFlags, x86::InstDB::OpFlags::kVmMask)) {
           // TODO:
           skip = true;
         }
-        else if (opMask & x86::InstDB::kOpAllImm) {
+        else if (Support::test(opFlags, x86::InstDB::OpFlags::kImmMask)) {
           operands[opIndex] = Imm(++immCount);
-          if (opMask & (x86::InstDB::kOpI64 | x86::InstDB::kOpU64))
+          if (Support::test(opFlags, x86::InstDB::OpFlags::kImmI64 | x86::InstDB::OpFlags::kImmU64))
             instSpec[opIndex] = InstSpec::kOpImm64;
-          else if (opMask & (x86::InstDB::kOpI32 | x86::InstDB::kOpU32))
+          else if (Support::test(opFlags, x86::InstDB::OpFlags::kImmI32 | x86::InstDB::OpFlags::kImmU32))
             instSpec[opIndex] = InstSpec::kOpImm32;
-          else if (opMask & (x86::InstDB::kOpI16 | x86::InstDB::kOpU16))
+          else if (Support::test(opFlags, x86::InstDB::OpFlags::kImmI16 | x86::InstDB::OpFlags::kImmU16))
             instSpec[opIndex] = InstSpec::kOpImm16;
           else
             instSpec[opIndex] = InstSpec::kOpImm8;
@@ -620,7 +579,7 @@ void InstBench::classify(std::vector<InstSpec>& dst, uint32_t instId) {
 
       if (!skip) {
         if (vec || isSafeGpInst(instId)) {
-          BaseInst baseInst(instId, 0);
+          BaseInst baseInst(instId, InstOptions::kNone);
           if (_canRun(baseInst, operands, opCount)) {
             InstSpec spec = InstSpec::pack(instSpec[0], instSpec[1], instSpec[2], instSpec[3], instSpec[4], instSpec[5]);
             if (known.find(spec.value) == known.end()) {
@@ -636,13 +595,13 @@ void InstBench::classify(std::vector<InstSpec>& dst, uint32_t instId) {
   }
 }
 
-bool InstBench::isImplicit(uint32_t instId) {
+bool InstBench::isImplicit(InstId instId) {
   const x86::InstDB::InstInfo& instInfo = x86::InstDB::infoById(instId);
   const x86::InstDB::InstSignature* iSig = instInfo.signatureData();
   const x86::InstDB::InstSignature* iEnd = instInfo.signatureEnd();
 
   while (iSig != iEnd) {
-    if (iSig->implicit)
+    if (iSig->hasImplicitOperands())
       return true;
     iSig++;
   }
@@ -656,11 +615,11 @@ bool InstBench::_canRun(const BaseInst& inst, const Operand_* operands, uint32_t
   if (inst.id() == x86::Inst::kIdNone)
     return false;
 
-  if (InstAPI::validate(Environment::kArchHost, inst, operands, count) != kErrorOk)
+  if (InstAPI::validate(Arch::kHost, inst, operands, count) != kErrorOk)
     return false;
 
-  BaseFeatures features;
-  if (InstAPI::queryFeatures(Environment::kArchHost, inst, operands, count, &features) != kErrorOk)
+  CpuFeatures features;
+  if (InstAPI::queryFeatures(Arch::kHost, inst, operands, count, &features) != kErrorOk)
     return false;
 
   if (!_cpuInfo.features().hasAll(features))
@@ -669,7 +628,7 @@ bool InstBench::_canRun(const BaseInst& inst, const Operand_* operands, uint32_t
   return true;
 }
 
-uint32_t InstBench::numIterByInstId(uint32_t instId) {
+uint32_t InstBench::numIterByInstId(InstId instId) {
   switch (instId) {
     // Return low number for instructions that are really slow.
     case x86::Inst::kIdCpuid:
@@ -682,7 +641,7 @@ uint32_t InstBench::numIterByInstId(uint32_t instId) {
   }
 }
 
-double InstBench::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t parallel, bool overheadOnly) {
+double InstBench::testInstruction(InstId instId, InstSpec instSpec, uint32_t parallel, bool overheadOnly) {
   _instId = instId;
   _instSpec = instSpec;
   _nParallel = parallel ? 6 : 1;
@@ -691,7 +650,7 @@ double InstBench::testInstruction(uint32_t instId, InstSpec instSpec, uint32_t p
   Func func = compileFunc();
   if (!func) {
     String name;
-    InstAPI::instIdToString(Environment::kArchHost, instId, name);
+    InstAPI::instIdToString(Arch::kHost, instId, name);
     printf("FAILED to compile function for '%s' instruction\n", name.data());
     return -1.0;
   }
@@ -744,15 +703,15 @@ void InstBench::beforeBody(x86::Assembler& a) {
 void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   using namespace asmjit;
 
-  uint32_t instId = _instId;
+  InstId instId = _instId;
   const x86::InstDB::InstInfo& instInfo = x86::InstDB::infoById(instId);
 
   uint32_t rMask[32] = { 0 };
 
-  rMask[x86::Reg::kGroupGp  ] = 0xFF & ~Support::bitMask(x86::Gp::kIdSp, rCnt.id());
-  rMask[x86::Reg::kGroupVec ] = 0xFF;
-  rMask[x86::Reg::kGroupMm  ] = 0xFF;
-  rMask[x86::Reg::kGroupKReg] = 0xFE;
+  rMask[uint32_t(RegGroup::kGp)] = 0xFF & ~Support::bitMask(x86::Gp::kIdSp, rCnt.id());
+  rMask[uint32_t(RegGroup::kVec)] = 0xFF;
+  rMask[uint32_t(RegGroup::kX86_K)] = 0xFE;
+  rMask[uint32_t(RegGroup::kX86_MM)] = 0xFF;
 
   Operand* o0 = static_cast<Operand*>(::calloc(1, sizeof(Operand) * _nUnroll));
   Operand* o1 = static_cast<Operand*>(::calloc(1, sizeof(Operand) * _nUnroll));
@@ -775,28 +734,28 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       case InstSpec::kOpAx:
       case InstSpec::kOpEax:
       case InstSpec::kOpRax:
-        rMask[x86::Reg::kGroupGp] &= ~Support::bitMask(x86::Gp::kIdAx);
+        rMask[uint32_t(RegGroup::kGp)] &= ~Support::bitMask(x86::Gp::kIdAx);
         break;
 
       case InstSpec::kOpBl:
       case InstSpec::kOpBx:
       case InstSpec::kOpEbx:
       case InstSpec::kOpRbx:
-        rMask[x86::Reg::kGroupGp] &= ~Support::bitMask(x86::Gp::kIdBx);
+        rMask[uint32_t(RegGroup::kGp)] &= ~Support::bitMask(x86::Gp::kIdBx);
         break;
 
       case InstSpec::kOpCl:
       case InstSpec::kOpCx:
       case InstSpec::kOpEcx:
       case InstSpec::kOpRcx:
-        rMask[x86::Reg::kGroupGp] &= ~Support::bitMask(x86::Gp::kIdCx);
+        rMask[uint32_t(RegGroup::kGp)] &= ~Support::bitMask(x86::Gp::kIdCx);
         break;
 
       case InstSpec::kOpDl:
       case InstSpec::kOpDx:
       case InstSpec::kOpEdx:
       case InstSpec::kOpRdx:
-        rMask[x86::Reg::kGroupGp] &= ~Support::bitMask(x86::Gp::kIdDx);
+        rMask[uint32_t(RegGroup::kGp)] &= ~Support::bitMask(x86::Gp::kIdDx);
         break;
     }
   }
@@ -909,15 +868,15 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 
       case InstSpec::kOpXmm0 : fillRegScalar(dst, _nUnroll, x86::xmm0); break;
 
-      case InstSpec::kOpGpb  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp  ], x86::RegTraits<x86::Reg::kTypeGpbLo>::kSignature); break;
-      case InstSpec::kOpGpw  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp  ], x86::RegTraits<x86::Reg::kTypeGpw>::kSignature); break;
-      case InstSpec::kOpGpd  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp  ], x86::RegTraits<x86::Reg::kTypeGpd>::kSignature); break;
-      case InstSpec::kOpGpq  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupGp  ], x86::RegTraits<x86::Reg::kTypeGpq>::kSignature); break;
-      case InstSpec::kOpMm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupMm  ], x86::RegTraits<x86::Reg::kTypeMm >::kSignature); break;
-      case InstSpec::kOpXmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec ], x86::RegTraits<x86::Reg::kTypeXmm>::kSignature); break;
-      case InstSpec::kOpYmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec ], x86::RegTraits<x86::Reg::kTypeYmm>::kSignature); break;
-      case InstSpec::kOpZmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupVec ], x86::RegTraits<x86::Reg::kTypeZmm>::kSignature); break;
-      case InstSpec::kOpKReg : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[x86::Reg::kGroupKReg], x86::RegTraits<x86::Reg::kTypeKReg>::kSignature); break;
+      case InstSpec::kOpGpb  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)]    , x86::RegTraits<RegType::kX86_GpbLo>::kSignature); break;
+      case InstSpec::kOpGpw  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)]    , x86::RegTraits<RegType::kX86_Gpw>::kSignature); break;
+      case InstSpec::kOpGpd  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)]    , x86::RegTraits<RegType::kX86_Gpd>::kSignature); break;
+      case InstSpec::kOpGpq  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)]    , x86::RegTraits<RegType::kX86_Gpq>::kSignature); break;
+      case InstSpec::kOpXmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)]   , x86::RegTraits<RegType::kX86_Xmm>::kSignature); break;
+      case InstSpec::kOpYmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)]   , x86::RegTraits<RegType::kX86_Ymm>::kSignature); break;
+      case InstSpec::kOpZmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)]   , x86::RegTraits<RegType::kX86_Zmm>::kSignature); break;
+      case InstSpec::kOpKReg : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_K)] , x86::RegTraits<RegType::kX86_KReg>::kSignature); break;
+      case InstSpec::kOpMm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_MM)], x86::RegTraits<RegType::kX86_Mm >::kSignature); break;
 
       case InstSpec::kOpImm8 : fillImmArray(dst, _nUnroll, 0, 1    , 15        ); break;
       case InstSpec::kOpImm16: fillImmArray(dst, _nUnroll, 1, 13099, 65535     ); break;
@@ -966,7 +925,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   a.test(rCnt, rCnt);
   a.jz(L_End);
 
-  a.align(kAlignCode, 64);
+  a.align(AlignMode::kCode, 64);
   a.bind(L_Body);
 
   if (instId == x86::Inst::kIdPop && !_overheadOnly)

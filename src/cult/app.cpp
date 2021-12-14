@@ -47,7 +47,7 @@ void App::parseArguments() {
 
   const char* instruction = _cmd.valueOf("--instruction");
   if (instruction) {
-    _singleInstId = asmjit::InstAPI::stringToInstId(Environment::kArchHost, instruction, strlen(instruction));
+    _singleInstId = asmjit::InstAPI::stringToInstId(Arch::kHost, instruction, strlen(instruction));
     if (_singleInstId == 0) {
       printf("The required instruction '%s' was not found in the database\n", instruction);
       exit(1);

@@ -91,42 +91,42 @@ public:
   InstBench(App* app);
   virtual ~InstBench();
 
-  void classify(std::vector<InstSpec>& dst, uint32_t instId);
-  double testInstruction(uint32_t instId, InstSpec instSpec, uint32_t parallel, bool overheadOnly);
+  void classify(std::vector<InstSpec>& dst, InstId instId);
+  double testInstruction(InstId instId, InstSpec instSpec, uint32_t parallel, bool overheadOnly);
 
   inline bool is64Bit() const {
-    return Environment::kArchHost == Environment::kArchX64;
+    return Environment::is64Bit(Arch::kHost);
   }
 
-  bool isImplicit(uint32_t instId);
+  bool isImplicit(InstId instId);
 
-  uint32_t numIterByInstId(uint32_t instId);
+  uint32_t numIterByInstId(InstId instId);
 
-  inline bool isMMX(uint32_t instId, InstSpec spec) {
+  inline bool isMMX(InstId instId, InstSpec spec) {
     return spec.get(0) == InstSpec::kOpMm || spec.get(1) == InstSpec::kOpMm;
   }
 
-  inline bool isVec(uint32_t instId, InstSpec spec) {
+  inline bool isVec(InstId instId, InstSpec spec) {
     const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && !isMMX(instId, spec);
   }
 
-  inline bool isSSE(uint32_t instId, InstSpec spec) {
+  inline bool isSSE(InstId instId, InstSpec spec) {
     const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && !isMMX(instId, spec) && !inst.isVex() && !inst.isEvex();
   }
 
-  inline bool isAVX(uint32_t instId, InstSpec spec) {
+  inline bool isAVX(InstId instId, InstSpec spec) {
     const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
     return inst.isVec() && (inst.isVex() || inst.isEvex());
   }
 
-  inline bool canRun(uint32_t instId) const {
+  inline bool canRun(InstId instId) const {
     return _canRun(BaseInst(instId), nullptr, 0);
   }
 
   template<typename... ArgsT>
-  inline bool canRun(uint32_t instId, ArgsT&&... args) const {
+  inline bool canRun(InstId instId, ArgsT&&... args) const {
     Operand_ ops[] = { args... };
     return _canRun(BaseInst(instId), ops, sizeof...(args));
   }

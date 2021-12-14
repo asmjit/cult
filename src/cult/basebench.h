@@ -12,7 +12,7 @@ public:
   BaseBench(App* app);
   virtual ~BaseBench();
 
-  inline const x86::Features& features() const { return _cpuInfo.features().as<x86::Features>(); }
+  inline const CpuFeatures::X86& x86Features() const { return _cpuInfo.features().x86(); }
 
   Func compileFunc();
   void releaseFunc(Func func);

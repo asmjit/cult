@@ -30,21 +30,20 @@ BaseBench::Func BaseBench::compileFunc() {
   code.setErrorHandler(&eh);
 
   if (_app->dump()) {
-    logger.addFlags(FormatOptions::kFlagMachineCode |
-                    FormatOptions::kFlagExplainImms);
+    logger.addFlags(FormatFlags::kMachineCode | FormatFlags::kExplainImms);
     code.setLogger(&logger);
   }
 
   x86::Assembler a(&code);
 
   FuncDetail fd;
-  fd.init(FuncSignatureT<void, uint32_t, uint64_t*>(CallConv::kIdCDecl), code.environment());
+  fd.init(FuncSignatureT<void, uint32_t, uint64_t*>(CallConvId::kCDecl), code.environment());
 
   FuncFrame frame;
   frame.init(fd);
 
-  frame.setAllDirty(x86::Reg::kGroupGp);
-  frame.setAllDirty(x86::Reg::kGroupVec);
+  frame.setAllDirty(RegGroup::kGp);
+  frame.setAllDirty(RegGroup::kVec);
   frame.setLocalStackSize(1024);
 
   // Configure some stack vars that we use to save GP regs.
@@ -79,7 +78,7 @@ BaseBench::Func BaseBench::compileFunc() {
   compileBody(a, rCnt);
 
   // --- Benchmark epilog ---
-  if (features().hasRDTSCP()) {
+  if (x86Features().hasRDTSCP()) {
     a.rdtscp();
     a.mov(x86::esi, x86::eax);
     a.mov(x86::edi, x86::edx);
@@ -87,7 +86,7 @@ BaseBench::Func BaseBench::compileFunc() {
     a.cpuid();
   }
   else {
-    if (features().hasSSE2())
+    if (x86Features().hasSSE2())
       a.lfence();
     a.rdtsc();
     a.mov(x86::esi, x86::eax);
