@@ -18,7 +18,7 @@ CpuDetect::CpuDetect(App* app) : _app(app) {
   ::memset(_vendorString, 0, sizeof(_vendorString));
   ::memset(_vendorName  , 0, sizeof(_vendorName  ));
   ::memset(_brandString , 0, sizeof(_brandString ));
-  ::memset(_archCodename, 0, sizeof(_archCodename));
+  ::memset(_uarchName   , 0, sizeof(_uarchName   ));
 }
 CpuDetect::~CpuDetect() {}
 
@@ -204,141 +204,158 @@ void CpuDetect::_queryCpuData() {
 }
 
 void CpuDetect::_queryCpuInfo() {
-  // CPU architecture codename.
-  const char* codename = "Unknown";
+  // CPU microarchitecture name.
+  const char* uarch = "Unknown";
 
   if (strcmp(_vendorString, "GenuineIntel") == 0) {
-    codename = "Unknown";
+    uarch = "Unknown";
 
     if (_familyId <= 0x04) {
-      codename = "I486";
+      uarch = "I486";
     }
 
     if (_familyId == 0x05) {
-      codename = "Pentium";
+      uarch = "Pentium";
       switch (_modelId) {
         case 0x04:
-        case 0x08: codename = "Pentium MMX"   ; break;
-        case 0x09: codename = "Quark"         ; break;
+        case 0x08: uarch = "Pentium MMX"   ; break;
+        case 0x09: uarch = "Quark"         ; break;
       }
     }
 
     if (_familyId == 0x06) {
       switch (_modelId) {
-        case 0x01: codename = "Pentium Pro"   ; break;
-        case 0x03: codename = "Pentium 2"     ; break;
-        case 0x05: codename = "Pentium 2"     ; break;
-        case 0x06: codename = "Pentium 2"     ; break;
-        case 0x07: codename = "Pentium 3"     ; break;
-        case 0x08: codename = "Pentium 3"     ; break;
-        case 0x09: codename = "Pentium M"     ; break;
-        case 0x0A: codename = "Pentium 3"     ; break;
-        case 0x0B: codename = "Pentium 3"     ; break;
-        case 0x0D: codename = "Pentium M"     ; break;
-        case 0x0E: codename = "Yonah"         ; break;
-        case 0x0F: codename = "Merom"         ; break;
-        case 0x15: codename = "Pentium M"     ; break;
-        case 0x16: codename = "Merom"         ; break;
-        case 0x17: codename = "Penryn"        ; break;
-        case 0x1A: codename = "Nehalem"       ; break;
-        case 0x1C: codename = "Bonnell"       ; break;
-        case 0x1D: codename = "Penryn"        ; break;
-        case 0x1E: codename = "Nehalem"       ; break;
-        case 0x25: codename = "Westmere"      ; break;
-        case 0x26: codename = "Bonnell"       ; break;
-        case 0x27: codename = "Bonnell"       ; break;
-        case 0x2A: codename = "Sandy Bridge"  ; break;
-        case 0x2C: codename = "Westmere"      ; break;
-        case 0x2D: codename = "Sandy Bridge"  ; break;
-        case 0x2E: codename = "Nehalem"       ; break;
-        case 0x2F: codename = "Westmere"      ; break;
-        case 0x35: codename = "Bonnell"       ; break;
-        case 0x36: codename = "Bonnell"       ; break;
-        case 0x37: codename = "Solvermont"    ; break;
-        case 0x3A: codename = "Ivy Bridge"    ; break;
-        case 0x3C: codename = "Haswell"       ; break;
-        case 0x3D: codename = "Broadwell"     ; break;
-        case 0x3E: codename = "Ivy Bridge"    ; break;
-        case 0x3F: codename = "Haswell"       ; break;
-        case 0x45: codename = "Haswell"       ; break;
-        case 0x46: codename = "Haswell"       ; break;
-        case 0x4A: codename = "Solvermont"    ; break;
-        case 0x4D: codename = "Solvermont"    ; break;
-        case 0x4E: codename = "Skylake"       ; break;
-        case 0x5E: codename = "Skylake"       ; break;
-        case 0x8E: codename = "Kaby Lake"     ; break;
-        case 0x9E: codename = "Kaby Lake"     ; break;
+        case 0x01: uarch = "Pentium Pro"   ; break;
+        case 0x03: uarch = "Pentium 2"     ; break;
+        case 0x05: uarch = "Pentium 2"     ; break;
+        case 0x06: uarch = "Pentium 2"     ; break;
+        case 0x07: uarch = "Pentium 3"     ; break;
+        case 0x08: uarch = "Pentium 3"     ; break;
+        case 0x09: uarch = "Pentium M"     ; break;
+        case 0x0A: uarch = "Pentium 3"     ; break;
+        case 0x0B: uarch = "Pentium 3"     ; break;
+        case 0x0D: uarch = "Pentium M"     ; break;
+        case 0x0E: uarch = "Yonah"         ; break;
+        case 0x0F: uarch = "Merom"         ; break;
+        case 0x15: uarch = "Pentium M"     ; break;
+        case 0x16: uarch = "Merom"         ; break;
+        case 0x17: uarch = "Penryn"        ; break;
+        case 0x1A: uarch = "Nehalem"       ; break;
+        case 0x1C: uarch = "Bonnell"       ; break;
+        case 0x1D: uarch = "Penryn"        ; break;
+        case 0x1E: uarch = "Nehalem"       ; break;
+        case 0x25: uarch = "Westmere"      ; break;
+        case 0x26: uarch = "Bonnell"       ; break;
+        case 0x27: uarch = "Bonnell"       ; break;
+        case 0x2A: uarch = "Sandy Bridge"  ; break;
+        case 0x2C: uarch = "Westmere"      ; break;
+        case 0x2D: uarch = "Sandy Bridge"  ; break;
+        case 0x2E: uarch = "Nehalem"       ; break;
+        case 0x2F: uarch = "Westmere"      ; break;
+        case 0x35: uarch = "Bonnell"       ; break;
+        case 0x36: uarch = "Bonnell"       ; break;
+        case 0x37: uarch = "Solvermont"    ; break;
+        case 0x3A: uarch = "Ivy Bridge"    ; break;
+        case 0x3C: uarch = "Haswell"       ; break;
+        case 0x3D: uarch = "Broadwell"     ; break;
+        case 0x3E: uarch = "Ivy Bridge"    ; break;
+        case 0x3F: uarch = "Haswell"       ; break;
+        case 0x45: uarch = "Haswell"       ; break;
+        case 0x46: uarch = "Haswell"       ; break;
+        case 0x4A: uarch = "Solvermont"    ; break;
+        case 0x4D: uarch = "Solvermont"    ; break;
+        case 0x4E: uarch = "Skylake"       ; break;
+        case 0x5E: uarch = "Skylake"       ; break;
+        case 0x8E: uarch = "Kaby Lake"     ; break;
+        case 0x9E: uarch = "Kaby Lake"     ; break;
       }
     }
 
     if (_familyId == 0x0B) {
       switch (_modelId) {
-        case 0x01: codename = "Knights Corner"; break;
-        case 0x57: codename = "Knights Landing"; break;
+        case 0x01: uarch = "Knights Corner"; break;
+        case 0x57: uarch = "Knights Landing"; break;
       }
     }
 
     if (_familyId == 0x0F) {
       switch (_modelId) {
-        case 0x00: codename = "Pentium 4"     ; break;
-        case 0x01: codename = "Pentium 4"     ; break;
-        case 0x02: codename = "Pentium 4"     ; break;
-        case 0x03: codename = "Prescott"      ; break;
-        case 0x04: codename = "Prescott"      ; break;
-        case 0x06: codename = "Prescott"      ; break;
-        case 0x0D: codename = "Dothan"        ; break;
+        case 0x00: uarch = "Pentium 4"     ; break;
+        case 0x01: uarch = "Pentium 4"     ; break;
+        case 0x02: uarch = "Pentium 4"     ; break;
+        case 0x03: uarch = "Prescott"      ; break;
+        case 0x04: uarch = "Prescott"      ; break;
+        case 0x06: uarch = "Prescott"      ; break;
+        case 0x0D: uarch = "Dothan"        ; break;
       }
     }
   }
 
   if (strcmp(_vendorString, "AuthenticAMD") == 0) {
-    codename = "Unknown";
+    uarch = "Unknown";
 
     if (_familyId <= 0x04) {
-      codename = "AM486";
+      uarch = "AM486";
       if (_familyId == 0x04 && _modelId >= 0x0E) {
-        codename = "AM586";
+        uarch = "AM586";
       }
     }
 
     if (_familyId == 0x05) {
-      codename = "K5";
-      if (_modelId >= 0x06) codename = "K6";
-      if (_modelId >= 0x08) codename = "K6-2";
-      if (_modelId >= 0x09) codename = "K6-3";
+      uarch = "K5";
+      if (_modelId >= 0x06) uarch = "K6";
+      if (_modelId >= 0x08) uarch = "K6-2";
+      if (_modelId >= 0x09) uarch = "K6-3";
     }
 
-    if (_familyId == 0x06) codename = "K7";
-    if (_familyId == 0x08) codename = "K8";
-    if (_familyId == 0x0F) codename = "K8";
-    if (_familyId == 0x10) codename = "K10";
-    if (_familyId == 0x11) codename = "K8";
-    if (_familyId == 0x12) codename = "K10";
-    if (_familyId == 0x14) codename = "Bobcat";
+    if (_familyId == 0x06) uarch = "K7";
+    if (_familyId == 0x08) uarch = "K8";
+    if (_familyId == 0x0F) uarch = "K8";
+    if (_familyId == 0x10) uarch = "K10";
+    if (_familyId == 0x11) uarch = "K8";
+    if (_familyId == 0x12) uarch = "K10";
+    if (_familyId == 0x14) uarch = "Bobcat";
 
     if (_familyId == 0x15) {
-      codename = "Bulldozer";
-      if (_modelId >= 0x02) codename = "Piledriver";
-      if (_modelId >= 0x30) codename = "Steamroller";
+      uarch = "Bulldozer";
+      if (_modelId >= 0x02) uarch = "Piledriver";
+      if (_modelId >= 0x30) uarch = "Steamroller";
+      if (_modelId >= 0x60) uarch = "Excavator";
     }
 
     if (_familyId == 0x16) {
-      codename = "Jaguar";
-      if (_modelId == 0x30) codename = "Jaguar (Puma)";
+      uarch = "Jaguar";
+      if (_modelId == 0x30) uarch = "Puma";
     }
 
     if (_familyId == 0x17) {
-      codename = "Zen";
+      uarch = "Zen";
+
+      if (_modelId == 0x90) uarch = "Zen 2";
+      if (_modelId == 0x71) uarch = "Zen 2";
+      if (_modelId == 0x68) uarch = "Zen 2";
+      if (_modelId == 0x60) uarch = "Zen 2";
+      if (_modelId == 0x47) uarch = "Zen 2";
+      if (_modelId == 0x31) uarch = "Zen 2";
     }
+
+    if (_familyId == 0x18) {
+      uarch = "Zen / Dhyana";
+    }
+
+    if (_familyId == 0x19) {
+      uarch = "Zen 3";
+    }
+
   }
-  strncpy(_archCodename, codename, sizeof(_archCodename) - 1);
+  strncpy(_uarchName, uarch, sizeof(_uarchName) - 1);
 
   if (_app->verbose()) {
     printf("CpuDetect:\n");
     printf("  VendorName: %s\n", _vendorName);
     printf("  VendorString: %s\n", _vendorString);
     printf("  BrandString: %s\n", _brandString);
-    printf("  Codename: %s\n", _archCodename);
+    printf("  uArch: %s\n", _uarchName);
     printf("  ModelId: 0x%02X\n", _modelId);
     printf("  FamilyId: 0x%04X\n", _familyId);
     printf("  SteppingId: 0x%02X\n", _steppingId);
@@ -352,7 +369,7 @@ void CpuDetect::_queryCpuInfo() {
         .beforeRecord().addKey("vendorName").addString(_vendorName)
         .beforeRecord().addKey("vendorString").addString(_vendorString)
         .beforeRecord().addKey("brandString").addString(_brandString)
-        .beforeRecord().addKey("codename").addString(_archCodename)
+        .beforeRecord().addKey("uarch").addString(_uarchName)
         .beforeRecord().addKey("modelId").addStringf("0x%02X", _modelId)
         .beforeRecord().addKey("familyId").addStringf("0x%0002X", _familyId)
         .beforeRecord().addKey("steppingId").addStringf("0x%02X", _steppingId)

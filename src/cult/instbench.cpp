@@ -236,14 +236,30 @@ static const char* instSpecOpAsString(uint32_t instSpecOp) {
     case InstSpec::kOpImm32: return "i32";
     case InstSpec::kOpImm64: return "i64";
 
+    case InstSpec::kOpMem8: return "m8";
+    case InstSpec::kOpMem16: return "m16";
+    case InstSpec::kOpMem32: return "m32";
+    case InstSpec::kOpMem64: return "m64";
+    case InstSpec::kOpMem128: return "m128";
+    case InstSpec::kOpMem256: return "m256";
+    case InstSpec::kOpMem512: return "m512";
+
     default:
       return "(invalid)";
   }
 }
 
-static void fillRegScalar(Operand* dst, uint32_t count, const Operand_& op) {
+static void fillOpArray(Operand* dst, uint32_t count, const Operand_& op) {
   for (uint32_t i = 0; i < count; i++)
     dst[i] = op;
+}
+
+static void fillMemArray(Operand* dst, uint32_t count, const x86::Mem& op, uint32_t increment) {
+  x86::Mem mem(op);
+  for (uint32_t i = 0; i < count; i++) {
+    dst[i] = mem;
+    mem.addOffset(increment);
+  }
 }
 
 static void fillRegArray(Operand* dst, uint32_t count, uint32_t rStart, uint32_t rInc, uint32_t rMask, uint32_t rSign) {
@@ -475,7 +491,8 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
     x86::InstDB::OpFlags::kRegZmm   |
     x86::InstDB::OpFlags::kRegMm    |
     x86::InstDB::OpFlags::kRegKReg  |
-    x86::InstDB::OpFlags::kImmMask  ;
+    x86::InstDB::OpFlags::kImmMask  |
+    x86::InstDB::OpFlags::kMemMask  ;
 
   if (Arch::kHost == Arch::kX86) {
     mode = x86::InstDB::Mode::kX86;
@@ -550,12 +567,42 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
             }
           }
 
-
           operands[opIndex] = reg;
         }
         else if (Support::test(opFlags, x86::InstDB::OpFlags::kMemMask)) {
-          // TODO:
-          skip = true;
+          switch (opFlags) {
+            case x86::InstDB::OpFlags::kMem8:
+              instSpec[opIndex] = InstSpec::kOpMem8;
+              operands[opIndex] = x86::byte_ptr(0);
+              break;
+            case x86::InstDB::OpFlags::kMem16:
+              instSpec[opIndex] = InstSpec::kOpMem16;
+              operands[opIndex] = x86::word_ptr(0);
+              break;
+            case x86::InstDB::OpFlags::kMem32:
+              instSpec[opIndex] = InstSpec::kOpMem32;
+              operands[opIndex] = x86::dword_ptr(0);
+              break;
+            case x86::InstDB::OpFlags::kMem64:
+              instSpec[opIndex] = InstSpec::kOpMem64;
+              operands[opIndex] = x86::qword_ptr(0);
+              break;
+            case x86::InstDB::OpFlags::kMem128:
+              instSpec[opIndex] = InstSpec::kOpMem128;
+              operands[opIndex] = x86::xmmword_ptr(0);
+              break;
+            case x86::InstDB::OpFlags::kMem256:
+              instSpec[opIndex] = InstSpec::kOpMem256;
+              operands[opIndex] = x86::ymmword_ptr(0);
+              break;
+            case x86::InstDB::OpFlags::kMem512:
+              instSpec[opIndex] = InstSpec::kOpMem512;
+              operands[opIndex] = x86::zmmword_ptr(0);
+              break;
+            default:
+              skip = true;
+              break;
+          }
         }
         else if (Support::test(opFlags, x86::InstDB::OpFlags::kVmMask)) {
           // TODO:
@@ -846,42 +893,46 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     }
 
     switch (spec) {
-      case InstSpec::kOpAl   : fillRegScalar(dst, _nUnroll, x86::al); break;
-      case InstSpec::kOpBl   : fillRegScalar(dst, _nUnroll, x86::bl); break;
-      case InstSpec::kOpCl   : fillRegScalar(dst, _nUnroll, x86::cl); break;
-      case InstSpec::kOpDl   : fillRegScalar(dst, _nUnroll, x86::dl); break;
+      case InstSpec::kOpAl    : fillOpArray(dst, _nUnroll, x86::al); break;
+      case InstSpec::kOpBl    : fillOpArray(dst, _nUnroll, x86::bl); break;
+      case InstSpec::kOpCl    : fillOpArray(dst, _nUnroll, x86::cl); break;
+      case InstSpec::kOpDl    : fillOpArray(dst, _nUnroll, x86::dl); break;
+      case InstSpec::kOpAx    : fillOpArray(dst, _nUnroll, x86::ax); break;
+      case InstSpec::kOpBx    : fillOpArray(dst, _nUnroll, x86::bx); break;
+      case InstSpec::kOpCx    : fillOpArray(dst, _nUnroll, x86::cx); break;
+      case InstSpec::kOpDx    : fillOpArray(dst, _nUnroll, x86::dx); break;
+      case InstSpec::kOpEax   : fillOpArray(dst, _nUnroll, x86::eax); break;
+      case InstSpec::kOpEbx   : fillOpArray(dst, _nUnroll, x86::ebx); break;
+      case InstSpec::kOpEcx   : fillOpArray(dst, _nUnroll, x86::ecx); break;
+      case InstSpec::kOpEdx   : fillOpArray(dst, _nUnroll, x86::edx); break;
+      case InstSpec::kOpRax   : fillOpArray(dst, _nUnroll, x86::rax); break;
+      case InstSpec::kOpRbx   : fillOpArray(dst, _nUnroll, x86::rbx); break;
+      case InstSpec::kOpRcx   : fillOpArray(dst, _nUnroll, x86::rcx); break;
+      case InstSpec::kOpRdx   : fillOpArray(dst, _nUnroll, x86::rdx); break;
+      case InstSpec::kOpGpb   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], x86::RegTraits<RegType::kX86_GpbLo>::kSignature); break;
+      case InstSpec::kOpGpw   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], x86::RegTraits<RegType::kX86_Gpw>::kSignature); break;
+      case InstSpec::kOpGpd   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], x86::RegTraits<RegType::kX86_Gpd>::kSignature); break;
+      case InstSpec::kOpGpq   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], x86::RegTraits<RegType::kX86_Gpq>::kSignature); break;
 
-      case InstSpec::kOpAx   : fillRegScalar(dst, _nUnroll, x86::ax); break;
-      case InstSpec::kOpBx   : fillRegScalar(dst, _nUnroll, x86::bx); break;
-      case InstSpec::kOpCx   : fillRegScalar(dst, _nUnroll, x86::cx); break;
-      case InstSpec::kOpDx   : fillRegScalar(dst, _nUnroll, x86::dx); break;
+      case InstSpec::kOpXmm0  : fillOpArray(dst, _nUnroll, x86::xmm0); break;
+      case InstSpec::kOpXmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Xmm>::kSignature); break;
+      case InstSpec::kOpYmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Ymm>::kSignature); break;
+      case InstSpec::kOpZmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Zmm>::kSignature); break;
+      case InstSpec::kOpKReg  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_K)], x86::RegTraits<RegType::kX86_KReg>::kSignature); break;
+      case InstSpec::kOpMm    : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_MM)], x86::RegTraits<RegType::kX86_Mm >::kSignature); break;
 
-      case InstSpec::kOpEax  : fillRegScalar(dst, _nUnroll, x86::eax); break;
-      case InstSpec::kOpEbx  : fillRegScalar(dst, _nUnroll, x86::ebx); break;
-      case InstSpec::kOpEcx  : fillRegScalar(dst, _nUnroll, x86::ecx); break;
-      case InstSpec::kOpEdx  : fillRegScalar(dst, _nUnroll, x86::edx); break;
+      case InstSpec::kOpImm8  : fillImmArray(dst, _nUnroll, 0, 1    , 15        ); break;
+      case InstSpec::kOpImm16 : fillImmArray(dst, _nUnroll, 1, 13099, 65535     ); break;
+      case InstSpec::kOpImm32 : fillImmArray(dst, _nUnroll, 1, 19231, 2000000000); break;
+      case InstSpec::kOpImm64 : fillImmArray(dst, _nUnroll, 1, 9876543219231, 0x0FFFFFFFFFFFFFFF); break;
 
-      case InstSpec::kOpRax  : fillRegScalar(dst, _nUnroll, x86::rax); break;
-      case InstSpec::kOpRbx  : fillRegScalar(dst, _nUnroll, x86::rbx); break;
-      case InstSpec::kOpRcx  : fillRegScalar(dst, _nUnroll, x86::rcx); break;
-      case InstSpec::kOpRdx  : fillRegScalar(dst, _nUnroll, x86::rdx); break;
-
-      case InstSpec::kOpXmm0 : fillRegScalar(dst, _nUnroll, x86::xmm0); break;
-
-      case InstSpec::kOpGpb  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)]    , x86::RegTraits<RegType::kX86_GpbLo>::kSignature); break;
-      case InstSpec::kOpGpw  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)]    , x86::RegTraits<RegType::kX86_Gpw>::kSignature); break;
-      case InstSpec::kOpGpd  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)]    , x86::RegTraits<RegType::kX86_Gpd>::kSignature); break;
-      case InstSpec::kOpGpq  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)]    , x86::RegTraits<RegType::kX86_Gpq>::kSignature); break;
-      case InstSpec::kOpXmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)]   , x86::RegTraits<RegType::kX86_Xmm>::kSignature); break;
-      case InstSpec::kOpYmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)]   , x86::RegTraits<RegType::kX86_Ymm>::kSignature); break;
-      case InstSpec::kOpZmm  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)]   , x86::RegTraits<RegType::kX86_Zmm>::kSignature); break;
-      case InstSpec::kOpKReg : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_K)] , x86::RegTraits<RegType::kX86_KReg>::kSignature); break;
-      case InstSpec::kOpMm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_MM)], x86::RegTraits<RegType::kX86_Mm >::kSignature); break;
-
-      case InstSpec::kOpImm8 : fillImmArray(dst, _nUnroll, 0, 1    , 15        ); break;
-      case InstSpec::kOpImm16: fillImmArray(dst, _nUnroll, 1, 13099, 65535     ); break;
-      case InstSpec::kOpImm32: fillImmArray(dst, _nUnroll, 1, 19231, 2000000000); break;
-      case InstSpec::kOpImm64: fillImmArray(dst, _nUnroll, 1, 9876543219231, 0x0FFFFFFFFFFFFFFF); break;
+      case InstSpec::kOpMem8  : fillMemArray(dst, _nUnroll, x86::byte_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 1 : 0); break;
+      case InstSpec::kOpMem16 : fillMemArray(dst, _nUnroll, x86::word_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 2 : 0); break;
+      case InstSpec::kOpMem32 : fillMemArray(dst, _nUnroll, x86::dword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 4 : 0); break;
+      case InstSpec::kOpMem64 : fillMemArray(dst, _nUnroll, x86::qword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 8 : 0); break;
+      case InstSpec::kOpMem128: fillMemArray(dst, _nUnroll, x86::xmmword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 16 : 0); break;
+      case InstSpec::kOpMem256: fillMemArray(dst, _nUnroll, x86::ymmword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 32 : 0); break;
+      case InstSpec::kOpMem512: fillMemArray(dst, _nUnroll, x86::zmmword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 64 : 0); break;
     }
   }
 
@@ -894,7 +945,8 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     case x86::Inst::kIdPush:
     case x86::Inst::kIdPop:
       // PUSH/POP modify the stack, we have to revert it in the inner loop.
-      stackOperationSize = (_instSpec.get(0) == InstSpec::kOpGpw ? 2 : int(a.registerSize())) * int(_nUnroll);
+      stackOperationSize = (_instSpec.get(0) == InstSpec::kOpGpw ||
+                            _instSpec.get(0) == InstSpec::kOpMem16 ? 2 : int(a.registerSize())) * int(_nUnroll);
       break;
 
     case x86::Inst::kIdCall:
@@ -911,6 +963,19 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       a.xor_(x86::ecx, x86::ecx);
       break;
 
+    case x86::Inst::kIdBt:
+    case x86::Inst::kIdBtc:
+    case x86::Inst::kIdBtr:
+    case x86::Inst::kIdBts:
+      // Don't go beyond our buffer in mem case.
+      a.mov(x86::eax, 3);
+      a.mov(x86::ebx, 14);
+      a.mov(x86::ecx, 35);
+      a.mov(x86::edx, 256);
+      a.mov(x86::esi, 577);
+      a.mov(x86::edi, 1198);
+      break;
+
     default:
       // This will cost us some cycles, however, we really want some predictable state.
       a.mov(x86::eax, 999);
@@ -919,6 +984,20 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       a.mov(x86::edx, 1193833);
       a.mov(x86::esi, 192822);
       a.mov(x86::edi, 1);
+      break;
+  }
+
+  switch (instId) {
+    case x86::Inst::kIdVmaskmovpd:
+    case x86::Inst::kIdVmaskmovps:
+    case x86::Inst::kIdVpmaskmovd:
+    case x86::Inst::kIdVpmaskmovq:
+      a.vpxor(x86::xmm0, x86::xmm0, x86::xmm0);
+      a.vpcmpeqd(x86::ymm1, x86::ymm1, x86::ymm1);
+      a.vpsrldq(x86::ymm1, x86::ymm1, 8);
+
+      for (i = 0; i < _nUnroll; i++)
+        o1[i].as<x86::Reg>().setId(1);
       break;
   }
 
@@ -1096,9 +1175,9 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
                 }
                 else if (x86::Reg::isKReg(reg)) {
                   if (isDst)
-                    a.kaddb(x86::k7, x86::k7, reg.as<x86::KReg>());
+                    a.korw(x86::k7, x86::k7, reg.as<x86::KReg>());
                   else
-                    a.kaddb(reg.as<x86::KReg>(), x86::k7, reg.as<x86::KReg>());
+                    a.korw(reg.as<x86::KReg>(), x86::k7, reg.as<x86::KReg>());
                 }
                 else if (x86::Reg::isMm(reg)) {
                   if (isDst)
@@ -1196,6 +1275,9 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 void InstBench::afterBody(x86::Assembler& a) {
   if (isMMX(_instId, _instSpec))
     a.emms();
+
+  if (isVec(_instId, _instSpec))
+    a.vzeroupper();
 }
 
 } // cult namespace

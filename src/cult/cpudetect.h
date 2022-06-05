@@ -32,7 +32,7 @@ public:
   char _vendorString[16];
   char _vendorName[16];
   char _brandString[64];
-  char _archCodename[32];
+  char _uarchName[32];
 };
 
 } // cult namespace

@@ -45,7 +45,14 @@ struct InstSpec {
     kOpImm8,
     kOpImm16,
     kOpImm32,
-    kOpImm64
+    kOpImm64,
+    kOpMem8,
+    kOpMem16,
+    kOpMem32,
+    kOpMem64,
+    kOpMem128,
+    kOpMem256,
+    kOpMem512
   };
 
   static inline InstSpec none() {
