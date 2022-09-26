@@ -193,6 +193,34 @@ static bool isSafeGpInst(InstId instId) {
          instId == x86::Inst::kIdXor      ;
 }
 
+static bool isSafeUnaligned(InstId instId, uint32_t memOp) {
+  const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
+
+  if (instId == x86::Inst::kIdNop)
+    return false;
+
+  if (inst.isSse()) {
+    return instId == x86::Inst::kIdMovdqu ||
+           instId == x86::Inst::kIdMovupd ||
+           instId == x86::Inst::kIdMovups ||
+           memOp != InstSpec::kOpMem128;
+  }
+
+  if (inst.isAvx() || inst.isEvex()) {
+    return instId != x86::Inst::kIdVmovapd &&
+           instId != x86::Inst::kIdVmovaps &&
+           instId != x86::Inst::kIdVmovdqa &&
+           instId != x86::Inst::kIdVmovdqa32 &&
+           instId != x86::Inst::kIdVmovdqa64 &&
+           instId != x86::Inst::kIdVmovntdq &&
+           instId != x86::Inst::kIdVmovntdqa &&
+           instId != x86::Inst::kIdVmovntpd &&
+           instId != x86::Inst::kIdVmovntps;
+  }
+
+  return true;
+}
+
 static const char* instSpecOpAsString(uint32_t instSpecOp) {
   switch (instSpecOp) {
     case InstSpec::kOpNone : return "none";
@@ -367,53 +395,75 @@ void InstBench::run() {
     for (size_t i = 0; i < specs.size(); i++) {
       InstSpec instSpec = specs[i];
       uint32_t opCount = instSpec.count();
+      uint32_t memOp = instSpec.memOp();
 
-      StringTmp<256> sb;
-      if (instId == x86::Inst::kIdCall)
-        sb.append("call+ret");
-      else
-        InstAPI::instIdToString(Arch::kHost, instId, sb);
+      std::vector<uint32_t> alignments;
+      if (InstSpec::isMemOp(memOp) && memOp != InstSpec::kOpMem8 && isSafeUnaligned(instId, memOp)) {
+        alignments.push_back(0u);
+        alignments.push_back(1u);
+      }
+      else {
+        alignments.push_back(0u);
+      }
 
-      for (uint32_t i = 0; i < opCount; i++) {
-        if (i == 0)
-          sb.append(' ');
-        else if (instId == x86::Inst::kIdLea)
-          sb.append(i == 1 ? ", [" : " + ");
+      for (uint32_t alignment : alignments) {
+        StringTmp<256> sb;
+        if (instId == x86::Inst::kIdCall)
+          sb.append("call+ret");
         else
-          sb.append(", ");
+          InstAPI::instIdToString(Arch::kHost, instId, sb);
 
-        sb.append(instSpecOpAsString(instSpec.get(i)));
-        if (instId == x86::Inst::kIdLea && i == opCount - 1)
-          sb.append(']');
+        for (uint32_t i = 0; i < opCount; i++) {
+          if (i == 0)
+            sb.append(' ');
+          else if (instId == x86::Inst::kIdLea)
+            sb.append(i == 1 ? ", [" : " + ");
+          else
+            sb.append(", ");
+
+          sb.append(instSpecOpAsString(instSpec.get(i)));
+
+          if (instId == x86::Inst::kIdLea && i == opCount - 1)
+            sb.append(']');
+
+          if (InstSpec::isMemOp(instSpec.get(i))) {
+            if (alignments.size() != 1) {
+              if (alignment == 0)
+                sb.append(" {a}");
+              else
+                sb.append(" {u}");
+            }
+          }
+        }
+
+        double overheadLat = testInstruction(instId, instSpec, 0, alignment, true);
+        double overheadRcp = testInstruction(instId, instSpec, 1, alignment, true);
+
+        double lat = testInstruction(instId, instSpec, 0, alignment, false);
+        double rcp = testInstruction(instId, instSpec, 1, alignment, false);
+
+        lat = std::max<double>(lat - overheadLat, 0);
+        rcp = std::max<double>(rcp - overheadRcp, 0);
+
+        if (_app->_round) {
+          lat = roundResult(lat);
+          rcp = roundResult(rcp);
+        }
+
+        // Some tests are probably skewed. If this happens the latency is the throughput.
+        if (rcp > lat)
+          lat = rcp;
+
+        if (_app->verbose())
+          printf("  %-40s: Lat:%7.2f Rcp:%7.2f\n", sb.data(), lat, rcp);
+
+        json.beforeRecord()
+            .openObject()
+            .addKey("inst").addString(sb.data()).alignTo(54)
+            .addKey("lat").addDoublef("%7.2f", lat)
+            .addKey("rcp").addDoublef("%7.2f", rcp)
+            .closeObject();
       }
-
-      double overheadLat = testInstruction(instId, instSpec, 0, true);
-      double overheadRcp = testInstruction(instId, instSpec, 1, true);
-
-      double lat = testInstruction(instId, instSpec, 0, false);
-      double rcp = testInstruction(instId, instSpec, 1, false);
-
-      lat = std::max<double>(lat - overheadLat, 0);
-      rcp = std::max<double>(rcp - overheadRcp, 0);
-
-      if (_app->_round) {
-        lat = roundResult(lat);
-        rcp = roundResult(rcp);
-      }
-
-      // Some tests are probably skewed. If this happens the latency is the throughput.
-      if (rcp > lat)
-        lat = rcp;
-
-      if (_app->verbose())
-        printf("  %-40s: Lat:%7.2f Rcp:%7.2f\n", sb.data(), lat, rcp);
-
-      json.beforeRecord()
-          .openObject()
-          .addKey("inst").addString(sb.data()).alignTo(54)
-          .addKey("lat").addDoublef("%7.2f", lat)
-          .addKey("rcp").addDoublef("%7.2f", rcp)
-          .closeObject();
     }
   }
 
@@ -570,6 +620,10 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
           operands[opIndex] = reg;
         }
         else if (Support::test(opFlags, x86::InstDB::OpFlags::kMemMask)) {
+          // The assembler would just swap the operands, so if memory is first or second it doesn't matter.
+          if (opIndex == 0 && instId == x86::Inst::kIdXchg)
+            skip = true;
+
           switch (opFlags) {
             case x86::InstDB::OpFlags::kMem8:
               instSpec[opIndex] = InstSpec::kOpMem8;
@@ -675,7 +729,7 @@ bool InstBench::_canRun(const BaseInst& inst, const Operand_* operands, uint32_t
   return true;
 }
 
-uint32_t InstBench::numIterByInstId(InstId instId) {
+uint32_t InstBench::numIterByInstId(InstId instId) const {
   switch (instId) {
     // Return low number for instructions that are really slow.
     case x86::Inst::kIdCpuid:
@@ -688,11 +742,12 @@ uint32_t InstBench::numIterByInstId(InstId instId) {
   }
 }
 
-double InstBench::testInstruction(InstId instId, InstSpec instSpec, uint32_t parallel, bool overheadOnly) {
+double InstBench::testInstruction(InstId instId, InstSpec instSpec, uint32_t parallel, uint32_t memAlignment, bool overheadOnly) {
   _instId = instId;
   _instSpec = instSpec;
   _nParallel = parallel ? 6 : 1;
   _overheadOnly = overheadOnly;
+  _memAlignment = memAlignment;
 
   Func func = compileFunc();
   if (!func) {
@@ -771,6 +826,11 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   uint32_t i;
   uint32_t opCount = _instSpec.count();
   uint32_t regCount = opCount;
+
+  int32_t misalignment = 0;
+
+  if (_memAlignment != 0)
+    misalignment = 1;
 
   while (regCount && _instSpec.get(regCount - 1) >= InstSpec::kOpImm8)
     regCount--;
@@ -926,13 +986,13 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       case InstSpec::kOpImm32 : fillImmArray(dst, _nUnroll, 1, 19231, 2000000000); break;
       case InstSpec::kOpImm64 : fillImmArray(dst, _nUnroll, 1, 9876543219231, 0x0FFFFFFFFFFFFFFF); break;
 
-      case InstSpec::kOpMem8  : fillMemArray(dst, _nUnroll, x86::byte_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 1 : 0); break;
-      case InstSpec::kOpMem16 : fillMemArray(dst, _nUnroll, x86::word_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 2 : 0); break;
-      case InstSpec::kOpMem32 : fillMemArray(dst, _nUnroll, x86::dword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 4 : 0); break;
-      case InstSpec::kOpMem64 : fillMemArray(dst, _nUnroll, x86::qword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 8 : 0); break;
-      case InstSpec::kOpMem128: fillMemArray(dst, _nUnroll, x86::xmmword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 16 : 0); break;
-      case InstSpec::kOpMem256: fillMemArray(dst, _nUnroll, x86::ymmword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 32 : 0); break;
-      case InstSpec::kOpMem512: fillMemArray(dst, _nUnroll, x86::zmmword_ptr(a.gpz(x86::Gp::kIdSp)), isParallel ? 64 : 0); break;
+      case InstSpec::kOpMem8  : fillMemArray(dst, _nUnroll, x86::byte_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 1 : 0); break;
+      case InstSpec::kOpMem16 : fillMemArray(dst, _nUnroll, x86::word_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 2 : 0); break;
+      case InstSpec::kOpMem32 : fillMemArray(dst, _nUnroll, x86::dword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 4 : 0); break;
+      case InstSpec::kOpMem64 : fillMemArray(dst, _nUnroll, x86::qword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 8 : 0); break;
+      case InstSpec::kOpMem128: fillMemArray(dst, _nUnroll, x86::xmmword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 16 : 0); break;
+      case InstSpec::kOpMem256: fillMemArray(dst, _nUnroll, x86::ymmword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 32 : 0); break;
+      case InstSpec::kOpMem512: fillMemArray(dst, _nUnroll, x86::zmmword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 64 : 0); break;
     }
   }
 

@@ -63,21 +63,35 @@ struct InstSpec {
     return InstSpec { uint64_t(o0) | uint64_t(o1 << 8) | uint64_t(o2 << 16) | uint64_t(o3 << 24) | (uint64_t(o4) << 32) | (uint64_t(o5) << 40) };
   }
 
+  static inline bool isMemOp(uint32_t op) {
+    return op >= kOpMem8 && op <= kOpMem512;
+  }
+
   inline bool isValid() const { return value != 0; }
 
   inline uint32_t count() const {
     uint32_t i = 0;
     uint64_t v = value;
-    while (v & 0xFF) {
+
+    while ((v & 0xFF) != 0 && i < 6) {
       i++;
       v >>= 8;
     }
+
     return i;
   }
 
   inline uint32_t get(size_t index) const {
     assert(index < 6);
     return uint32_t((value >> (index * 8)) & 0xFF);
+  }
+
+  inline uint32_t memOp() const {
+    uint32_t n = count();
+    for (uint32_t i = 0; i < n; i++)
+      if (get(i) >= kOpMem8 && get(i) <= kOpMem512)
+        return get(i);
+    return kOpNone;
   }
 
   static inline bool isImplicitOp(uint32_t op) {
@@ -99,7 +113,7 @@ public:
   virtual ~InstBench();
 
   void classify(std::vector<InstSpec>& dst, InstId instId);
-  double testInstruction(InstId instId, InstSpec instSpec, uint32_t parallel, bool overheadOnly);
+  double testInstruction(InstId instId, InstSpec instSpec, uint32_t parallel, uint32_t memAlignment, bool overheadOnly);
 
   inline bool is64Bit() const {
     return Environment::is64Bit(Arch::kHost);
@@ -107,7 +121,7 @@ public:
 
   bool isImplicit(InstId instId);
 
-  uint32_t numIterByInstId(InstId instId);
+  uint32_t numIterByInstId(InstId instId) const;
 
   inline bool isMMX(InstId instId, InstSpec spec) {
     return spec.get(0) == InstSpec::kOpMm || spec.get(1) == InstSpec::kOpMm;
@@ -145,11 +159,12 @@ public:
   void compileBody(x86::Assembler& a, x86::Gp rCnt) override;
   void afterBody(x86::Assembler& a) override;
 
-  uint32_t _instId;
-  InstSpec _instSpec;
-  uint32_t _nUnroll;
-  uint32_t _nParallel;
-  bool _overheadOnly;
+  uint32_t _instId {};
+  InstSpec _instSpec {};
+  uint32_t _nUnroll {};
+  uint32_t _nParallel {};
+  uint32_t _memAlignment {};
+  bool _overheadOnly {};
 };
 
 } // cult namespace
