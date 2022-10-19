@@ -41,6 +41,6 @@ public:
   uint32_t _level;
 };
 
-} // cult namespace
+} // {cult} namespace
 
 #endif // _CULT_JSONBUILDER_H

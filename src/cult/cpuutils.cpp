@@ -69,4 +69,4 @@ uint64_t get_tsc_freq() {
 }
 
 } // CpuUtils namespace
-} // cult namespace
+} // {cult} namespace

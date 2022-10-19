@@ -35,6 +35,6 @@ public:
   char _uarchName[32];
 };
 
-} // cult namespace
+} // {cult} namespace
 
 #endif // _CULT_CPUDETECT_H

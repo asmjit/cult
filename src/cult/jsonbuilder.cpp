@@ -163,4 +163,4 @@ JSONBuilder& JSONBuilder::beforeRecord() {
   return *this;
 }
 
-} // cult namespace
+} // {cult} namespace

@@ -1340,4 +1340,4 @@ void InstBench::afterBody(x86::Assembler& a) {
     a.vzeroupper();
 }
 
-} // cult namespace
+} // {cult} namespace

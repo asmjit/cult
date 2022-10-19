@@ -42,11 +42,11 @@ BaseBench::Func BaseBench::compileFunc() {
   FuncFrame frame;
   frame.init(fd);
 
-  size_t localStackSize = 64 * 40 + 128;
+  size_t localStackSize = 64 * 65 + 128;
 
   frame.setAllDirty(RegGroup::kGp);
   frame.setAllDirty(RegGroup::kVec);
-  frame.setLocalStackSize(3072);
+  frame.setLocalStackSize(localStackSize);
   frame.setLocalStackAlignment(64);
 
   // Configure some stack vars that we use to save GP regs.
@@ -120,4 +120,4 @@ void BaseBench::releaseFunc(Func func) {
   _runtime.release(func);
 }
 
-} // cult namespace
+} // {cult} namespace

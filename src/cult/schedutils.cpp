@@ -31,4 +31,4 @@ void SchedUtils::setAffinity(uint32_t cpu) {
 }
 #endif
 
-} // cult namespace
+} // {cult} namespace

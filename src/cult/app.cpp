@@ -11,8 +11,7 @@ App::App(int argc, char* argv[])
   : _cmd(argc, argv),
     _json(&_output) {}
 
-App::~App() {
-}
+App::~App() {}
 
 void App::parseArguments() {
   if (_cmd.hasKey("--help")) _help = true;
@@ -40,7 +39,7 @@ void App::parseArguments() {
     printf("  --estimate         - Estimate only (faster, but less precise)\n");
     printf("  --no-rounding      - Don't round cycles and latencies\n");
     printf("  --instruction=name - Only benchmark a particular instruction\n");
-    printf("  --output=file      - Output to file instead of stdout\n");
+    printf("  --output=file      - end output to file instead of stdout\n");
     printf("\n");
     exit(0);
   }
@@ -97,7 +96,7 @@ int App::run() {
   return 0;
 }
 
-} // cult namespace
+} // {cult} namespace
 
 int main(int argc, char* argv[]) {
   cult::App app(argc, argv);

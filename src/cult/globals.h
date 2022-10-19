@@ -26,6 +26,6 @@
 
 namespace cult {
 using namespace asmjit;
-} // cult namespace
+} // {cult} namespace
 
 #endif // _CULT_GLOBALS_H

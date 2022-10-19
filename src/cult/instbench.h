@@ -167,6 +167,6 @@ public:
   bool _overheadOnly {};
 };
 
-} // cult namespace
+} // {cult} namespace
 
 #endif // _CULT_INSTBENCH_H

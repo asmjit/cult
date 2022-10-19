@@ -27,6 +27,6 @@ void cpuid_query(CpuidOut* result, uint32_t inEax, uint32_t inEcx = 0);
 uint64_t get_tsc_freq();
 
 } // CpuUtils namespace
-} // cult namespace
+} // {cult} namespace
 
 #endif // _CULT_CPUUTILS_H

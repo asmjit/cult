@@ -73,6 +73,6 @@ public:
   JSONBuilder _json;
 };
 
-} // cult namespace
+} // {cult} namespace
 
 #endif // _CULT_APP_H

@@ -408,4 +408,4 @@ CpuUtils::CpuidOut CpuDetect::entryOf(uint32_t eax, uint32_t ecx) {
   return out;
 }
 
-} // cult namespace
+} // {cult} namespace

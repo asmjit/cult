@@ -28,6 +28,6 @@ public:
   CpuInfo _cpuInfo;
 };
 
-} // cult namespace
+} // {cult} namespace
 
 #endif // _CULT_BASEBENCH_H
