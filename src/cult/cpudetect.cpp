@@ -345,8 +345,13 @@ void CpuDetect::_queryCpuInfo() {
 
     if (_familyId == 0x19) {
       uarch = "Zen 3";
+
+      if (_modelId == 0x61) uarch = "Zen 4";
     }
 
+    if (_familyId == 0x1A) {
+      uarch = "Zen 5";
+    }
   }
   strncpy(_uarchName, uarch, sizeof(_uarchName) - 1);
 
