@@ -42,7 +42,7 @@ BaseBench::Func BaseBench::compileFunc() {
   FuncFrame frame;
   frame.init(fd);
 
-  size_t localStackSize = 64 * 65 + 128;
+  uint32_t localStackSize = 64 * 65 + 128;
 
   frame.setAllDirty(RegGroup::kGp);
   frame.setAllDirty(RegGroup::kVec);

@@ -9,7 +9,7 @@ namespace cult {
 
 #if defined(_WIN32)
 void SchedUtils::setAffinity(uint32_t cpu) {
-  SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)(1 << cpu));
+  SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)(uint64_t(1) << cpu));
 }
 #elif defined(__APPLE__)
 void SchedUtils::setAffinity(uint32_t cpu) {
