@@ -33,10 +33,6 @@ void CpuDetect::_queryCpuData() {
   if (_app->verbose())
     printf("CpuData (CPUID):\n");
 
-  json.beforeRecord()
-      .addKey("cpuData")
-      .openArray();
-
   CpuUtils::CpuidIn in = { 0 };
   CpuUtils::CpuidOut out = { 0 };
 
@@ -198,7 +194,6 @@ void CpuDetect::_queryCpuData() {
 
   if (_app->verbose())
     printf("\n");
-  json.closeArray(true);
 
   fix_brand_string(_brandString);
 }
@@ -389,17 +384,6 @@ void CpuDetect::addEntry(const CpuUtils::CpuidIn& in, const CpuUtils::CpuidOut& 
     printf("  In:%08X Sub:%08X -> EAX:%08X EBX:%08X ECX:%08X EDX:%08X\n", in.eax, in.ecx, out.eax, out.ebx, out.ecx, out.edx);
 
   _entries.push_back(CpuUtils::CpuidEntry{in, out});
-
-  JSONBuilder& json = _app->json();
-  json.beforeRecord()
-      .openObject()
-      .addKey("level").addStringf("0x%08X", in.eax)
-      .addKey("subleaf").addStringf("0x%08X", in.ecx)
-      .addKey("eax").addStringf("0x%08X", out.eax)
-      .addKey("ebx").addStringf("0x%08X", out.ebx)
-      .addKey("ecx").addStringf("0x%08X", out.ecx)
-      .addKey("edx").addStringf("0x%08X", out.edx)
-      .closeObject();
 }
 
 CpuUtils::CpuidOut CpuDetect::entryOf(uint32_t eax, uint32_t ecx) {

@@ -2,8 +2,8 @@
 #define _CULT_GLOBALS_H
 
 #define CULT_VERSION_MAJOR 0
-#define CULT_VERSION_MINOR 0
-#define CULT_VERSION_MICRO 1
+#define CULT_VERSION_MINOR 1
+#define CULT_VERSION_MICRO 0
 
 #if defined(_WIN32)
   #define NOMINMAX

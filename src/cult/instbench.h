@@ -12,8 +12,8 @@ namespace cult {
 // ============================================================================
 
 struct InstSpec {
-  // Instruction signature is 4 values (8-bit each) describing 4 operands:
-  enum Op : uint32_t {
+  // Instruction signature is 6 values (8-bit each) describing 6 operands:
+  enum Op : uint8_t {
     kOpNone = 0,
     kOpRel,
     kOpGpb,
@@ -52,45 +52,72 @@ struct InstSpec {
     kOpMem64,
     kOpMem128,
     kOpMem256,
-    kOpMem512
+    kOpMem512,
+    kOpVm32x,
+    kOpVm32y,
+    kOpVm32z,
+    kOpVm64x,
+    kOpVm64y,
+    kOpVm64z
+  };
+
+  enum Flags : uint8_t {
+    kLeaScale = 0x01
   };
 
   static inline InstSpec none() {
-    return InstSpec { 0 };
+    return InstSpec{};
   }
 
   static inline InstSpec pack(uint32_t o0, uint32_t o1 = 0, uint32_t o2 = 0, uint32_t o3 = 0, uint32_t o4 = 0, uint32_t o5 = 0) {
-    return InstSpec { uint64_t(o0) | uint64_t(o1 << 8) | uint64_t(o2 << 16) | uint64_t(o3 << 24) | (uint64_t(o4) << 32) | (uint64_t(o5) << 40) };
+    return InstSpec{{Op(o0), Op(o1), Op(o2), Op(o3), Op(o4), Op(o5)}};
   }
 
   static inline bool isMemOp(uint32_t op) {
     return op >= kOpMem8 && op <= kOpMem512;
   }
 
-  inline bool isValid() const { return value != 0; }
+  static inline bool isVmOp(uint32_t op) {
+    return op >= kOpVm32x && op <= kOpVm64z;
+  }
+
+  inline bool operator<(const InstSpec& other) const noexcept {
+    for (uint32_t i = 0; i < 6; i++)
+      if (_opData[i] < other._opData[i])
+        return true;
+    return _flags < other._flags;
+  }
+
+  inline bool operator==(const InstSpec& other) const noexcept {
+    for (uint32_t i = 0; i < 6; i++)
+      if (_opData[i] != other._opData[i])
+        return false;
+    return _flags == other._flags;
+  }
+
+  inline bool isValid() const {
+    return _opData[0] != 0;
+  }
+
+  inline bool isLeaScale() const noexcept { return (_flags & kLeaScale) != 0; }
 
   inline uint32_t count() const {
     uint32_t i = 0;
-    uint64_t v = value;
-
-    while ((v & 0xFF) != 0 && i < 6) {
+    while (i < 6 && _opData[i] != 0)
       i++;
-      v >>= 8;
-    }
-
     return i;
   }
 
   inline uint32_t get(size_t index) const {
     assert(index < 6);
-    return uint32_t((value >> (index * 8)) & 0xFF);
+    return _opData[index];
   }
 
   inline uint32_t memOp() const {
     uint32_t n = count();
     for (uint32_t i = 0; i < n; i++)
-      if (get(i) >= kOpMem8 && get(i) <= kOpMem512)
-        return get(i);
+      if (_opData[i] >= kOpMem8 && _opData[i] <= kOpVm64z)
+        return _opData[i];
     return kOpNone;
   }
 
@@ -98,7 +125,14 @@ struct InstSpec {
     return (op >= kOpAl && op <= kOpRdx) || op == kOpXmm0;
   }
 
-  uint64_t value;
+  inline InstSpec leaScale() const noexcept {
+    InstSpec out(*this);
+    out._flags = uint8_t(out._flags | kLeaScale);
+    return out;
+  }
+
+  Op _opData[6];
+  uint8_t _flags;
 };
 
 // ============================================================================
@@ -154,6 +188,9 @@ public:
 
   bool _canRun(const BaseInst& inst, const Operand_* operands, uint32_t count) const;
 
+  const void* ensureGatherData(uint32_t elementSize, bool isAligned);
+  void freeGatherData(uint32_t elementSize);
+
   void run() override;
   void beforeBody(x86::Assembler& a) override;
   void compileBody(x86::Assembler& a, x86::Gp rCnt) override;
@@ -165,6 +202,9 @@ public:
   uint32_t _nParallel {};
   uint32_t _memAlignment {};
   bool _overheadOnly {};
+
+  void* _gatherData[2];
+  uint32_t _gatherDataSize;
 };
 
 } // {cult} namespace
