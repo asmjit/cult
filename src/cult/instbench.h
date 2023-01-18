@@ -113,6 +113,11 @@ struct InstSpec {
     return _opData[index];
   }
 
+  inline void set(size_t index, uint32_t v) {
+    assert(index < 6);
+    _opData[index] = Op(v);
+  }
+
   inline uint32_t memOp() const {
     uint32_t n = count();
     for (uint32_t i = 0; i < n; i++)
@@ -191,10 +196,13 @@ public:
   const void* ensureGatherData(uint32_t elementSize, bool isAligned);
   void freeGatherData(uint32_t elementSize);
 
+  uint32_t localStackSize() const override;
   void run() override;
   void beforeBody(x86::Assembler& a) override;
   void compileBody(x86::Assembler& a, x86::Gp rCnt) override;
   void afterBody(x86::Assembler& a) override;
+
+  void fillMemory32(x86::Assembler& a, x86::Gp baseAddress, uint32_t value, uint32_t n);
 
   uint32_t _instId {};
   InstSpec _instSpec {};

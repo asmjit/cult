@@ -585,6 +585,10 @@ void InstBench::freeGatherData(uint32_t elementSize) {
   _gatherData[index] = nullptr;
 }
 
+uint32_t InstBench::localStackSize() const {
+  return 64 * 65;
+}
+
 void InstBench::run() {
   JSONBuilder& json = _app->json();
 
@@ -812,9 +816,8 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
 
     InstSignatureIterator it(instSignature, opFilter);
     while (it.isValid()) {
-      Operand operands[6];
       uint32_t opCount = it.opCount();
-      uint32_t instSpec[6] {};
+      InstSpec instSpec {};
 
       bool skip = false;
       bool vec = false;
@@ -825,23 +828,21 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
         const x86::InstDB::OpSignature* opSig = it.opSig(opIndex);
 
         if (Support::test(opFlags, x86::InstDB::OpFlags::kRegMask)) {
-          x86::Reg reg;
           uint32_t regId = 0;
-
           if (Support::isPowerOf2(opSig->regMask()))
             regId = Support::ctz(opSig->regMask());
 
           switch (opFlags) {
-            case x86::InstDB::OpFlags::kRegGpbLo: reg._initReg(OperandSignature{x86::GpbLo::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpb; break;
-            case x86::InstDB::OpFlags::kRegGpbHi: reg._initReg(OperandSignature{x86::GpbHi::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpb; break;
-            case x86::InstDB::OpFlags::kRegGpw  : reg._initReg(OperandSignature{x86::Gpw  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpw; break;
-            case x86::InstDB::OpFlags::kRegGpd  : reg._initReg(OperandSignature{x86::Gpd  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpd; break;
-            case x86::InstDB::OpFlags::kRegGpq  : reg._initReg(OperandSignature{x86::Gpq  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpGpq; break;
-            case x86::InstDB::OpFlags::kRegXmm  : reg._initReg(OperandSignature{x86::Xmm  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpXmm; vec = true; break;
-            case x86::InstDB::OpFlags::kRegYmm  : reg._initReg(OperandSignature{x86::Ymm  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpYmm; vec = true; break;
-            case x86::InstDB::OpFlags::kRegZmm  : reg._initReg(OperandSignature{x86::Zmm  ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpZmm; vec = true; break;
-            case x86::InstDB::OpFlags::kRegMm   : reg._initReg(OperandSignature{x86::Mm   ::kSignature}, regId); instSpec[opIndex] = InstSpec::kOpMm; vec = true; break;
-            case x86::InstDB::OpFlags::kRegKReg : reg._initReg(OperandSignature{x86::KReg ::kSignature}, 1    ); instSpec[opIndex] = InstSpec::kOpKReg; vec = true; break;
+            case x86::InstDB::OpFlags::kRegGpbLo: instSpec.set(opIndex, InstSpec::kOpGpb); break;
+            case x86::InstDB::OpFlags::kRegGpbHi: instSpec.set(opIndex, InstSpec::kOpGpb); break;
+            case x86::InstDB::OpFlags::kRegGpw  : instSpec.set(opIndex, InstSpec::kOpGpw); break;
+            case x86::InstDB::OpFlags::kRegGpd  : instSpec.set(opIndex, InstSpec::kOpGpd); break;
+            case x86::InstDB::OpFlags::kRegGpq  : instSpec.set(opIndex, InstSpec::kOpGpq); break;
+            case x86::InstDB::OpFlags::kRegXmm  : instSpec.set(opIndex, InstSpec::kOpXmm); vec = true; break;
+            case x86::InstDB::OpFlags::kRegYmm  : instSpec.set(opIndex, InstSpec::kOpYmm); vec = true; break;
+            case x86::InstDB::OpFlags::kRegZmm  : instSpec.set(opIndex, InstSpec::kOpZmm); vec = true; break;
+            case x86::InstDB::OpFlags::kRegMm   : instSpec.set(opIndex, InstSpec::kOpMm); vec = true; break;
+            case x86::InstDB::OpFlags::kRegKReg : instSpec.set(opIndex, InstSpec::kOpKReg); vec = true; break;
             default:
               printf("[!!] Unknown register operand: OpMask=0x%016llX\n", (unsigned long long)opFlags);
               skip = true;
@@ -850,20 +851,18 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
 
           if (Support::isPowerOf2(opSig->regMask())) {
             switch (opFlags) {
-              case x86::InstDB::OpFlags::kRegGpbLo: instSpec[opIndex] = InstSpec::kOpAl + regId; break;
-              case x86::InstDB::OpFlags::kRegGpbHi: instSpec[opIndex] = InstSpec::kOpAl + regId; break;
-              case x86::InstDB::OpFlags::kRegGpw  : instSpec[opIndex] = InstSpec::kOpAx + regId; break;
-              case x86::InstDB::OpFlags::kRegGpd  : instSpec[opIndex] = InstSpec::kOpEax + regId; break;
-              case x86::InstDB::OpFlags::kRegGpq  : instSpec[opIndex] = InstSpec::kOpRax + regId; break;
-              case x86::InstDB::OpFlags::kRegXmm  : instSpec[opIndex] = InstSpec::kOpXmm0; break;
+              case x86::InstDB::OpFlags::kRegGpbLo: instSpec.set(opIndex, InstSpec::kOpAl + regId); break;
+              case x86::InstDB::OpFlags::kRegGpbHi: instSpec.set(opIndex, InstSpec::kOpAl + regId); break;
+              case x86::InstDB::OpFlags::kRegGpw  : instSpec.set(opIndex, InstSpec::kOpAx + regId); break;
+              case x86::InstDB::OpFlags::kRegGpd  : instSpec.set(opIndex, InstSpec::kOpEax + regId); break;
+              case x86::InstDB::OpFlags::kRegGpq  : instSpec.set(opIndex, InstSpec::kOpRax + regId); break;
+              case x86::InstDB::OpFlags::kRegXmm  : instSpec.set(opIndex, InstSpec::kOpXmm0); break;
               default:
                 printf("[!!] Unknown register operand: OpMask=0x%016llX\n", (unsigned long long)opFlags);
                 skip = true;
                 break;
             }
           }
-
-          operands[opIndex] = reg;
         }
         else if (Support::test(opFlags, x86::InstDB::OpFlags::kMemMask)) {
           // The assembler would just swap the operands, so if memory is first or second it doesn't matter.
@@ -871,34 +870,13 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
             skip = true;
 
           switch (opFlags) {
-            case x86::InstDB::OpFlags::kMem8:
-              instSpec[opIndex] = InstSpec::kOpMem8;
-              operands[opIndex] = x86::byte_ptr(0);
-              break;
-            case x86::InstDB::OpFlags::kMem16:
-              instSpec[opIndex] = InstSpec::kOpMem16;
-              operands[opIndex] = x86::word_ptr(0);
-              break;
-            case x86::InstDB::OpFlags::kMem32:
-              instSpec[opIndex] = InstSpec::kOpMem32;
-              operands[opIndex] = x86::dword_ptr(0);
-              break;
-            case x86::InstDB::OpFlags::kMem64:
-              instSpec[opIndex] = InstSpec::kOpMem64;
-              operands[opIndex] = x86::qword_ptr(0);
-              break;
-            case x86::InstDB::OpFlags::kMem128:
-              instSpec[opIndex] = InstSpec::kOpMem128;
-              operands[opIndex] = x86::xmmword_ptr(0);
-              break;
-            case x86::InstDB::OpFlags::kMem256:
-              instSpec[opIndex] = InstSpec::kOpMem256;
-              operands[opIndex] = x86::ymmword_ptr(0);
-              break;
-            case x86::InstDB::OpFlags::kMem512:
-              instSpec[opIndex] = InstSpec::kOpMem512;
-              operands[opIndex] = x86::zmmword_ptr(0);
-              break;
+            case x86::InstDB::OpFlags::kMem8: instSpec.set(opIndex, InstSpec::kOpMem8); break;
+            case x86::InstDB::OpFlags::kMem16: instSpec.set(opIndex, InstSpec::kOpMem16); break;
+            case x86::InstDB::OpFlags::kMem32: instSpec.set(opIndex, InstSpec::kOpMem32); break;
+            case x86::InstDB::OpFlags::kMem64: instSpec.set(opIndex, InstSpec::kOpMem64); break;
+            case x86::InstDB::OpFlags::kMem128: instSpec.set(opIndex, InstSpec::kOpMem128); break;
+            case x86::InstDB::OpFlags::kMem256: instSpec.set(opIndex, InstSpec::kOpMem256); break;
+            case x86::InstDB::OpFlags::kMem512: instSpec.set(opIndex, InstSpec::kOpMem512); break;
             default:
               skip = true;
               break;
@@ -906,45 +884,26 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
         }
         else if (Support::test(opFlags, x86::InstDB::OpFlags::kVmMask)) {
           switch (opFlags) {
-            case x86::InstDB::OpFlags::kVm32x:
-              instSpec[opIndex] = InstSpec::kOpVm32x;
-              operands[opIndex] = x86::ptr(0, x86::xmm7);
-              break;
-            case x86::InstDB::OpFlags::kVm32y:
-              instSpec[opIndex] = InstSpec::kOpVm32y;
-              operands[opIndex] = x86::ptr(0, x86::ymm7);
-              break;
-            case x86::InstDB::OpFlags::kVm32z:
-              instSpec[opIndex] = InstSpec::kOpVm32z;
-              operands[opIndex] = x86::ptr(0, x86::zmm7);
-              break;
-            case x86::InstDB::OpFlags::kVm64x:
-              instSpec[opIndex] = InstSpec::kOpVm64x;
-              operands[opIndex] = x86::ptr(0, x86::xmm7);
-              break;
-            case x86::InstDB::OpFlags::kVm64y:
-              instSpec[opIndex] = InstSpec::kOpVm64y;
-              operands[opIndex] = x86::ptr(0, x86::ymm7);
-              break;
-            case x86::InstDB::OpFlags::kVm64z:
-              instSpec[opIndex] = InstSpec::kOpVm64z;
-              operands[opIndex] = x86::ptr(0, x86::zmm7);
-              break;
+            case x86::InstDB::OpFlags::kVm32x: instSpec.set(opIndex, InstSpec::kOpVm32x); break;
+            case x86::InstDB::OpFlags::kVm32y: instSpec.set(opIndex, InstSpec::kOpVm32y); break;
+            case x86::InstDB::OpFlags::kVm32z: instSpec.set(opIndex, InstSpec::kOpVm32z); break;
+            case x86::InstDB::OpFlags::kVm64x: instSpec.set(opIndex, InstSpec::kOpVm64x); break;
+            case x86::InstDB::OpFlags::kVm64y: instSpec.set(opIndex, InstSpec::kOpVm64y); break;
+            case x86::InstDB::OpFlags::kVm64z: instSpec.set(opIndex, InstSpec::kOpVm64z); break;
             default:
               skip = true;
               break;
           }
         }
         else if (Support::test(opFlags, x86::InstDB::OpFlags::kImmMask)) {
-          operands[opIndex] = Imm(++immCount);
           if (Support::test(opFlags, x86::InstDB::OpFlags::kImmI64 | x86::InstDB::OpFlags::kImmU64))
-            instSpec[opIndex] = InstSpec::kOpImm64;
+            instSpec.set(opIndex, InstSpec::kOpImm64);
           else if (Support::test(opFlags, x86::InstDB::OpFlags::kImmI32 | x86::InstDB::OpFlags::kImmU32))
-            instSpec[opIndex] = InstSpec::kOpImm32;
+            instSpec.set(opIndex, InstSpec::kOpImm32);
           else if (Support::test(opFlags, x86::InstDB::OpFlags::kImmI16 | x86::InstDB::OpFlags::kImmU16))
-            instSpec[opIndex] = InstSpec::kOpImm16;
+            instSpec.set(opIndex, InstSpec::kOpImm16);
           else
-            instSpec[opIndex] = InstSpec::kOpImm8;
+            instSpec.set(opIndex, InstSpec::kOpImm8);
         }
         else {
           skip = true;
@@ -954,11 +913,13 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
       if (!skip) {
         if (vec || isSafeGpInst(instId)) {
           BaseInst baseInst(instId, InstOptions::kNone);
+          Operand operands[6] {};
+
+          instSpecToOperandArray(Arch::kHost, operands, instSpec);
           if (_canRun(baseInst, operands, opCount)) {
-            InstSpec spec = InstSpec::pack(instSpec[0], instSpec[1], instSpec[2], instSpec[3], instSpec[4], instSpec[5]);
-            if (known.find(spec) == known.end()) {
-              known.insert(spec);
-              dst.push_back(spec);
+            if (known.find(instSpec) == known.end()) {
+              known.insert(instSpec);
+              dst.push_back(instSpec);
             }
           }
         }
@@ -1011,7 +972,7 @@ uint32_t InstBench::numIterByInstId(InstId instId) const {
       return 4;
 
     default:
-      return 192;
+      return 160;
   }
 }
 
@@ -1071,15 +1032,7 @@ double InstBench::testInstruction(InstId instId, InstSpec instSpec, uint32_t par
 
 void InstBench::beforeBody(x86::Assembler& a) {
   if (_instId == x86::Inst::kIdDiv || _instId == x86::Inst::kIdIdiv) {
-    Label loop = a.newLabel();
-    x86::Gp cnt = x86::edi;
-
-    a.xor_(cnt, cnt);
-    a.bind(loop);
-    a.mov(x86::dword_ptr(a.zsp(), cnt, 2), 0x03030303);
-    a.inc(cnt);
-    a.cmp(cnt, 256);
-    a.jne(loop);
+    fillMemory32(a, a.zsp(), 0x03030303u, localStackSize() / 4);
   }
   else if (isGatherInst(_instId)) {
     x86::Gp gsBase = a.zdi();
@@ -1129,6 +1082,20 @@ void InstBench::beforeBody(x86::Assembler& a) {
       a.vpmullq(x86::zmm7, x86::zmm7, x86::zmm6);
     }
     a.vpxord(x86::xmm6, x86::xmm6, x86::xmm6);
+  }
+  else {
+    fillMemory32(a, a.zsp(), 0u, localStackSize() / 4);
+    if (x86::InstDB::infoById(_instId).isVec()) {
+      uint32_t regs = Arch::kHost == Arch::kX86 ? 8 : 16;
+      if (x86::InstDB::infoById(_instId).isSse()) {
+        for (uint32_t i = 0; i < regs; i++)
+          a.xorps(x86::xmm(i), x86::xmm(i));
+      }
+      else {
+        for (uint32_t i = 0; i < regs; i++)
+          a.vpxor(x86::xmm(i), x86::xmm(i), x86::xmm(i));
+      }
+    }
   }
 }
 
@@ -1809,6 +1776,18 @@ void InstBench::afterBody(x86::Assembler& a) {
 
   if (isVec(_instId, _instSpec))
     a.vzeroupper();
+}
+
+void InstBench::fillMemory32(x86::Assembler& a, x86::Gp baseAddress, uint32_t value, uint32_t n) {
+  Label loop = a.newLabel();
+  x86::Gp cnt = x86::edi;
+
+  a.xor_(cnt, cnt);
+  a.bind(loop);
+  a.mov(x86::dword_ptr(a.zsp(), cnt, 2), value);
+  a.inc(cnt);
+  a.cmp(cnt, n);
+  a.jne(loop);
 }
 
 } // {cult} namespace

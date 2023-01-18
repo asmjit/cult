@@ -260,6 +260,7 @@ void CpuDetect::_queryCpuInfo() {
         case 0x4A: uarch = "Solvermont"    ; break;
         case 0x4D: uarch = "Solvermont"    ; break;
         case 0x4E: uarch = "Skylake"       ; break;
+        case 0x55: uarch = "Cascade Lake"  ; break;
         case 0x5E: uarch = "Skylake"       ; break;
         case 0x8E: uarch = "Kaby Lake"     ; break;
         case 0x9E: uarch = "Kaby Lake"     ; break;

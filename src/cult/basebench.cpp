@@ -43,15 +43,13 @@ BaseBench::Func BaseBench::compileFunc() {
   FuncFrame frame;
   frame.init(fd);
 
-  uint32_t localStackSize = 64 * 65 + 128;
-
   frame.setAllDirty(RegGroup::kGp);
   frame.setAllDirty(RegGroup::kVec);
-  frame.setLocalStackSize(localStackSize);
+  frame.setLocalStackSize(localStackSize() + 128);
   frame.setLocalStackAlignment(64);
 
   // Configure some stack vars that we use to save GP regs.
-  x86::Mem stack     = x86::ptr(a.zsp(), localStackSize - 128);
+  x86::Mem stack     = x86::ptr(a.zsp(), localStackSize());
   x86::Mem mOut      = stack; stack.addOffset(a.registerSize());
   x86::Mem mCyclesLo = stack; stack.addOffset(4);
   x86::Mem mCyclesHi = stack; stack.addOffset(4);

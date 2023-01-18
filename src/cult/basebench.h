@@ -17,6 +17,7 @@ public:
   Func compileFunc();
   void releaseFunc(Func func);
 
+  virtual uint32_t localStackSize() const = 0;
   virtual void run() = 0;
   virtual void beforeBody(x86::Assembler& a) = 0;
   virtual void compileBody(x86::Assembler& a, x86::Gp rCnt) = 0;
