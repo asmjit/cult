@@ -326,6 +326,77 @@ static bool isSafeUnaligned(InstId instId, uint32_t memOp) {
   return true;
 }
 
+static void instSpecToOperandArray(Arch arch, Operand* operands, InstSpec spec) {
+  x86::Gp p;
+  if (arch == Arch::kX86)
+    p = x86::eax;
+  else
+    p = x86::rax;
+
+  for (uint32_t i = 0; i < 6; i++) {
+    switch (spec.get(i)) {
+      case InstSpec::kOpRel: operands[i] = Label(1); break;
+      case InstSpec::kOpGpb: operands[i] = x86::al; break;
+      case InstSpec::kOpGpw: operands[i] = x86::ax; break;
+      case InstSpec::kOpGpd: operands[i] = x86::eax; break;
+      case InstSpec::kOpGpq: operands[i] = x86::rax; break;
+      case InstSpec::kOpAl: operands[i] = x86::al; break;
+      case InstSpec::kOpCl: operands[i] = x86::cl; break;
+      case InstSpec::kOpDl: operands[i] = x86::dl; break;
+      case InstSpec::kOpBl: operands[i] = x86::bl; break;
+      case InstSpec::kOpAx: operands[i] = x86::ax; break;
+      case InstSpec::kOpCx: operands[i] = x86::cx; break;
+      case InstSpec::kOpDx: operands[i] = x86::dx; break;
+      case InstSpec::kOpBx: operands[i] = x86::bx; break;
+      case InstSpec::kOpEax: operands[i] = x86::eax; break;
+      case InstSpec::kOpEcx: operands[i] = x86::ecx; break;
+      case InstSpec::kOpEdx: operands[i] = x86::edx; break;
+      case InstSpec::kOpEbx: operands[i] = x86::ebx; break;
+      case InstSpec::kOpRax: operands[i] = x86::rax; break;
+      case InstSpec::kOpRcx: operands[i] = x86::rcx; break;
+      case InstSpec::kOpRdx: operands[i] = x86::rdx; break;
+      case InstSpec::kOpRbx: operands[i] = x86::rbx; break;
+      case InstSpec::kOpMm: operands[i] = x86::mm(i); break;
+      case InstSpec::kOpXmm: operands[i] = x86::xmm(i); break;
+      case InstSpec::kOpXmm0: operands[i] = x86::xmm0; break;
+      case InstSpec::kOpYmm: operands[i] = x86::ymm(i); break;
+      case InstSpec::kOpZmm: operands[i] = x86::zmm(i); break;
+      case InstSpec::kOpKReg: operands[i] = x86::k(i); break;
+      case InstSpec::kOpImm8: operands[i] = Imm(1); break;
+      case InstSpec::kOpImm16: operands[i] = Imm(1); break;
+      case InstSpec::kOpImm32: operands[i] = Imm(1); break;
+      case InstSpec::kOpImm64: operands[i] = Imm(1); break;
+      case InstSpec::kOpMem8: operands[i] = x86::byte_ptr(p); break;
+      case InstSpec::kOpMem16: operands[i] = x86::word_ptr(p); break;
+      case InstSpec::kOpMem32: operands[i] = x86::dword_ptr(p); break;
+      case InstSpec::kOpMem64: operands[i] = x86::qword_ptr(p); break;
+      case InstSpec::kOpMem128: operands[i] = x86::xmmword_ptr(p); break;
+      case InstSpec::kOpMem256: operands[i] = x86::ymmword_ptr(p); break;
+      case InstSpec::kOpMem512: operands[i] = x86::zmmword_ptr(p); break;
+      case InstSpec::kOpVm32x: operands[i] = x86::ptr(p, x86::xmm7); break;
+      case InstSpec::kOpVm32y: operands[i] = x86::ptr(p, x86::ymm7); break;
+      case InstSpec::kOpVm32z: operands[i] = x86::ptr(p, x86::zmm7); break;
+      case InstSpec::kOpVm64x: operands[i] = x86::ptr(p, x86::xmm7); break;
+      case InstSpec::kOpVm64y: operands[i] = x86::ptr(p, x86::ymm7); break;
+      case InstSpec::kOpVm64z: operands[i] = x86::ptr(p, x86::zmm7); break;
+      default:
+        break;
+    }
+  }
+}
+
+static bool isWriteOnly(Arch arch, InstId instId, InstSpec spec) {
+  Operand operands[6] {};
+  instSpecToOperandArray(arch, operands, spec);
+  InstRWInfo rwInfo {};
+
+  InstAPI::queryRWInfo(arch, BaseInst(instId), operands, spec.count(), &rwInfo);
+  if (rwInfo.opCount() > 0 && rwInfo.operands()[0].isWriteOnly())
+    return true;
+
+  return false;
+}
+
 static const char* instSpecOpAsString(uint32_t instSpecOp) {
   switch (instSpecOp) {
     case InstSpec::kOpNone : return "none";
@@ -1619,7 +1690,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
                          instId == x86::Inst::kIdCwd ||
                          instId == x86::Inst::kIdPop);
 
-          if (!sameKind || specialInst) {
+          if ((!sameKind && isWriteOnly(a.arch(), instId, _instSpec)) || specialInst) {
             for (uint32_t n = 0; n < _nUnroll; n++) {
               if (!_overheadOnly) {
                 Operand ops[6] = { o0[0], o1[0], o2[0], o3[0], o4[0], o5[0] };
