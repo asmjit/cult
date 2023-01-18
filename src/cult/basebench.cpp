@@ -35,6 +35,7 @@ BaseBench::Func BaseBench::compileFunc() {
   }
 
   x86::Assembler a(&code);
+  a.addDiagnosticOptions(DiagnosticOptions::kValidateAssembler);
 
   FuncDetail fd;
   fd.init(FuncSignatureT<void, uint32_t, uint64_t*>(CallConvId::kCDecl), code.environment());

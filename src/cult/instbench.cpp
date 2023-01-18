@@ -260,8 +260,42 @@ static uint32_t gatherIndexSize(InstId instId) {
   }
 }
 
+static uint32_t scatterIndexSize(InstId instId) {
+  switch (instId) {
+    case x86::Inst::kIdVscatterdps: return 32;
+    case x86::Inst::kIdVscatterdpd: return 32;
+    case x86::Inst::kIdVscatterqps: return 64;
+    case x86::Inst::kIdVscatterqpd: return 64;
+    case x86::Inst::kIdVpscatterdd: return 32;
+    case x86::Inst::kIdVpscatterdq: return 32;
+    case x86::Inst::kIdVpscatterqd: return 64;
+    case x86::Inst::kIdVpscatterqq: return 64;
+    default:
+      return 0;
+  }
+}
+
+static uint32_t scatterElementSize(InstId instId) {
+  switch (instId) {
+    case x86::Inst::kIdVscatterdps: return 32;
+    case x86::Inst::kIdVscatterdpd: return 64;
+    case x86::Inst::kIdVscatterqps: return 32;
+    case x86::Inst::kIdVscatterqpd: return 64;
+    case x86::Inst::kIdVpscatterdd: return 32;
+    case x86::Inst::kIdVpscatterdq: return 64;
+    case x86::Inst::kIdVpscatterqd: return 32;
+    case x86::Inst::kIdVpscatterqq: return 64;
+    default:
+      return 0;
+  }
+}
+
 static bool isGatherInst(InstId instId) {
   return gatherIndexSize(instId) != 0;
+}
+
+static bool isScatterInst(InstId instId) {
+  return scatterIndexSize(instId) != 0;
 }
 
 static bool isSafeUnaligned(InstId instId, uint32_t memOp) {
@@ -546,7 +580,7 @@ void InstBench::run() {
 
           sb.append(instSpecOpAsString(instSpec.get(i)));
 
-          if (i == 0 && isGatherInst(instId) && opCount == 2) {
+          if (i == 0 && (isGatherInst(instId) || isScatterInst(instId)) && opCount == 2) {
             sb.append(" {k}");
           }
 
@@ -628,10 +662,14 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
 
   if (instId == x86::Inst::kIdCall) {
     dst.push_back(InstSpec::pack(InstSpec::kOpRel));
-    if (is64Bit())
+    if (is64Bit()) {
       dst.push_back(InstSpec::pack(InstSpec::kOpGpq));
-    else
+      dst.push_back(InstSpec::pack(InstSpec::kOpMem64));
+    }
+    else {
       dst.push_back(InstSpec::pack(InstSpec::kOpGpd));
+      dst.push_back(InstSpec::pack(InstSpec::kOpMem32));
+    }
     return;
   }
 
@@ -796,9 +834,6 @@ void InstBench::classify(std::vector<InstSpec>& dst, InstId instId) {
           }
         }
         else if (Support::test(opFlags, x86::InstDB::OpFlags::kVmMask)) {
-          if (!isGatherInst(instId))
-            skip = true;
-
           switch (opFlags) {
             case x86::InstDB::OpFlags::kVm32x:
               instSpec[opIndex] = InstSpec::kOpVm32x;
@@ -905,7 +940,7 @@ uint32_t InstBench::numIterByInstId(InstId instId) const {
       return 4;
 
     default:
-      return 160;
+      return 192;
   }
 }
 
@@ -926,8 +961,8 @@ double InstBench::testInstruction(InstId instId, InstSpec instSpec, uint32_t par
 
   uint32_t nIter = numIterByInstId(_instId);
 
-  // Consider a significant improvement 0.08 cycles per instruction (0.2 cycles in fast mode).
-  uint32_t kSignificantImprovement = uint32_t(double(nIter) * (_app->_estimate ? 0.2 : 0.08));
+  // Consider a significant improvement 0.05 cycles per instruction (0.2 cycles in fast mode).
+  uint32_t kSignificantImprovement = uint32_t(double(nIter) * (_app->_estimate ? 0.25 : 0.05));
 
   // If we called the function N times without a significant improvement we terminate the test.
   uint32_t kMaximumImprovementTries = _app->_estimate ? 1000 : 50000;
@@ -970,14 +1005,14 @@ void InstBench::beforeBody(x86::Assembler& a) {
 
     a.xor_(cnt, cnt);
     a.bind(loop);
-    a.mov(x86::dword_ptr(a.gpz(x86::Gp::kIdSp), cnt, 2), 0x03030303);
+    a.mov(x86::dword_ptr(a.zsp(), cnt, 2), 0x03030303);
     a.inc(cnt);
     a.cmp(cnt, 256);
     a.jne(loop);
   }
   else if (isGatherInst(_instId)) {
-    x86::Gp gatherBase = a.gpz(x86::Gp::kIdDi);
-    a.mov(gatherBase, uintptr_t(ensureGatherData(gatherIndexSize(_instId), _memAlignment == 0)));
+    x86::Gp gsBase = a.zdi();
+    a.mov(gsBase, uintptr_t(ensureGatherData(gatherIndexSize(_instId), _memAlignment == 0)));
 
     if (_instSpec.count() == 2) {
       // AVX-512 gather has only two operands, one operand must be {k} register passed as extraReg.
@@ -987,7 +1022,7 @@ void InstBench::beforeBody(x86::Assembler& a) {
       for (uint32_t i = 0; i < regCount; i++) {
         if (i == 7)
           continue;
-        a.vmovdqu32(x86::zmm(i), x86::ptr(gatherBase, i * 32));
+        a.vmovdqu32(x86::zmm(i), x86::ptr(gsBase, i * 32));
       }
     }
     else {
@@ -997,9 +1032,32 @@ void InstBench::beforeBody(x86::Assembler& a) {
       for (uint32_t i = 0; i < regCount; i++) {
         if (i == 6 || i == 7)
           continue;
-        a.vmovdqu(x86::ymm(i), x86::ptr(gatherBase, i * 32));
+        a.vmovdqu(x86::ymm(i), x86::ptr(gsBase, i * 32));
       }
     }
+  }
+  else if (isScatterInst(_instId)) {
+    static const uint8_t sequence[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+
+    x86::Gp gsBase = a.zdi();
+    a.mov(gsBase, a.zsp());
+    a.kxnorq(x86::k7, x86::k7, x86::k7);
+    a.mov(a.zsi(), uintptr_t(sequence));
+
+    if (scatterIndexSize(_instId) == 32) {
+      a.vpmovzxbd(x86::zmm6, x86::ptr(a.zsi()));
+      a.mov(x86::esi, 128);
+      a.vpbroadcastd(x86::zmm7, x86::esi);
+      a.vpmulld(x86::zmm7, x86::zmm7, x86::zmm6);
+    }
+    else {
+      a.vpmovzxbq(x86::zmm6, x86::ptr(a.zsi()));
+      a.mov(x86::esi, 128);
+      a.movd(x86::xmm7, x86::esi);
+      a.vpbroadcastq(x86::zmm7, x86::xmm7);
+      a.vpmullq(x86::zmm7, x86::zmm7, x86::zmm6);
+    }
+    a.vpxord(x86::xmm6, x86::xmm6, x86::xmm6);
   }
 }
 
@@ -1016,25 +1074,26 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   rMask[uint32_t(RegGroup::kX86_K)] = 0xFE;
   rMask[uint32_t(RegGroup::kX86_MM)] = 0xFF;
 
-  x86::Gp gatherBase;
+  x86::Gp gsBase;
   x86::Vec gatherMask;
 
   // AVX-512 gather has only two operands, one operand must be {k} register passed as extraReg.
   bool isGather = isGatherInst(instId);
   bool isGatherAVX512 = isGather && _instSpec.count() == 2;
+  bool isScatterAVX512 = isScatterInst(instId);
 
-  uint32_t gatherIndexShift = 0; // gatherIndexSize(_instId) == 32 ? 2 : 3;
+  uint32_t gsIndexShift = 0;
 
-  if (isGather) {
-    gatherBase = a.gpz(x86::Gp::kIdDi);
-    rMask[uint32_t(RegGroup::kGp)] &= ~Support::bitMask(gatherBase.id());
+  if (isGather || isScatterAVX512) {
+    gsBase = a.zdi();
+    rMask[uint32_t(RegGroup::kGp)] &= ~Support::bitMask(gsBase.id());
     rMask[uint32_t(RegGroup::kVec)] &= ~Support::bitMask(6, 7);
     rMask[uint32_t(RegGroup::kX86_K)] &= ~Support::bitMask(6, 7);
 
     if (is64Bit())
       rMask[uint32_t(RegGroup::kVec)] |= isGatherAVX512 ? 0xFFFFFF00u : 0x0000FF00u;
 
-    if (!isGatherAVX512) {
+    if (!isGatherAVX512 && !isScatterAVX512) {
       gatherMask = x86::ymm7;
     }
   }
@@ -1092,7 +1151,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     }
   }
 
-  if (isGatherAVX512) {
+  if (isGatherAVX512 || isScatterAVX512) {
     fillRegArray(ox, _nUnroll, 1, isParallel ? 1 : 0, rMask[uint32_t(RegGroup::kX86_K)], x86::RegTraits<RegType::kX86_KReg>::kSignature);
   }
   else if (isGather) {
@@ -1220,13 +1279,13 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       case InstSpec::kOpImm32 : fillImmArray(dst, _nUnroll, 1, 19231, 2000000000); break;
       case InstSpec::kOpImm64 : fillImmArray(dst, _nUnroll, 1, 9876543219231, 0x0FFFFFFFFFFFFFFF); break;
 
-      case InstSpec::kOpMem8  : fillMemArray(dst, _nUnroll, x86::byte_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 1 : 0); break;
-      case InstSpec::kOpMem16 : fillMemArray(dst, _nUnroll, x86::word_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 2 : 0); break;
-      case InstSpec::kOpMem32 : fillMemArray(dst, _nUnroll, x86::dword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 4 : 0); break;
-      case InstSpec::kOpMem64 : fillMemArray(dst, _nUnroll, x86::qword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 8 : 0); break;
-      case InstSpec::kOpMem128: fillMemArray(dst, _nUnroll, x86::xmmword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 16 : 0); break;
-      case InstSpec::kOpMem256: fillMemArray(dst, _nUnroll, x86::ymmword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 32 : 0); break;
-      case InstSpec::kOpMem512: fillMemArray(dst, _nUnroll, x86::zmmword_ptr(a.gpz(x86::Gp::kIdSp), misalignment), isParallel ? 64 : 0); break;
+      case InstSpec::kOpMem8  : fillMemArray(dst, _nUnroll, x86::byte_ptr(a.zsp(), misalignment), isParallel ? 1 : 0); break;
+      case InstSpec::kOpMem16 : fillMemArray(dst, _nUnroll, x86::word_ptr(a.zsp(), misalignment), isParallel ? 2 : 0); break;
+      case InstSpec::kOpMem32 : fillMemArray(dst, _nUnroll, x86::dword_ptr(a.zsp(), misalignment), isParallel ? 4 : 0); break;
+      case InstSpec::kOpMem64 : fillMemArray(dst, _nUnroll, x86::qword_ptr(a.zsp(), misalignment), isParallel ? 8 : 0); break;
+      case InstSpec::kOpMem128: fillMemArray(dst, _nUnroll, x86::xmmword_ptr(a.zsp(), misalignment), isParallel ? 16 : 0); break;
+      case InstSpec::kOpMem256: fillMemArray(dst, _nUnroll, x86::ymmword_ptr(a.zsp(), misalignment), isParallel ? 32 : 0); break;
+      case InstSpec::kOpMem512: fillMemArray(dst, _nUnroll, x86::zmmword_ptr(a.zsp(), misalignment), isParallel ? 64 : 0); break;
 
       case InstSpec::kOpVm32x : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Xmm>::kSignature); break;
       case InstSpec::kOpVm32y : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Ymm>::kSignature); break;
@@ -1251,8 +1310,14 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       break;
 
     case x86::Inst::kIdCall:
-      if (_instSpec.get(0) != InstSpec::kOpRel)
+      if (_instSpec.get(0) == InstSpec::kOpGpd || _instSpec.get(0) == InstSpec::kOpGpq) {
         a.lea(a.zax(), x86::ptr(L_SubFn));
+      }
+      else if (_instSpec.get(0) == InstSpec::kOpMem32 || _instSpec.get(0) == InstSpec::kOpMem64) {
+        a.lea(a.zax(), x86::ptr(a.zsp(), misalignment));
+        a.lea(a.zbx(), x86::ptr(L_SubFn));
+        a.mov(x86::ptr(a.zax()), a.zbx());
+      }
       break;
 
     case x86::Inst::kIdCpuid:
@@ -1278,7 +1343,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       break;
 
     default:
-      if (!isGather) {
+      if (!isGather && !isScatterAVX512) {
         // This will cost us some cycles, however, we really want some predictable state.
         a.mov(x86::eax, 999);
         a.mov(x86::ebx, 49182);
@@ -1322,8 +1387,10 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       for (uint32_t n = 0; n < _nUnroll; n++) {
         if (_instSpec.get(0) == InstSpec::kOpRel)
           a.call(L_SubFn);
-        else
+        else if (_instSpec.get(0) == InstSpec::kOpGpd || _instSpec.get(0) == InstSpec::kOpGpq)
           a.call(a.zax());
+        else
+          a.call(x86::ptr(a.zax()));
       }
       break;
     }
@@ -1463,30 +1530,64 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
           x86::Vec dst = o0[n].as<x86::Vec>();
 
           a.kmovw(pred, x86::k7);
-
           if (!_overheadOnly)
-            a.k(pred).emit(instId, dst, x86::ptr(gatherBase, index, gatherIndexShift));
+            a.k(pred).emit(instId, dst, x86::ptr(gsBase, index, gsIndexShift));
 
           if (instId == x86::Inst::kIdVgatherqps || instId == x86::Inst::kIdVpgatherqd)
-            a.vpmovzxdq(dst, dst.cloneAs(index));
+            a.vpmovzxdq(dst.cloneAs(index), dst);
         }
       }
       else {
         for (uint32_t n = 0; n < _nUnroll; n++) {
           x86::Vec index = o1[n].as<x86::Vec>();
           x86::Vec ones = gatherMask.cloneAs(o0[n].as<x86::Vec>());
-          x86::Vec pred = x86::xmm6.cloneAs(ones);
           x86::Vec dst = o0[n].as<x86::Vec>();
 
+          x86::Vec pred = x86::xmm6.cloneAs(ones);
           a.vmovdqa(pred, ones);
 
           if (!_overheadOnly)
-            a.emit(instId, dst, x86::ptr(gatherBase, index, gatherIndexShift), pred);
+            a.emit(instId, dst, x86::ptr(gsBase, index, gsIndexShift), pred);
 
           if (instId == x86::Inst::kIdVgatherqps || instId == x86::Inst::kIdVpgatherqd)
-            a.vpmovzxdq(dst, dst.cloneAs(index));
+            a.vpmovzxdq(dst.cloneAs(index), dst);
         }
       }
+      break;
+    }
+
+    case x86::Inst::kIdVscatterdps:
+    case x86::Inst::kIdVpscatterdd:
+    case x86::Inst::kIdVscatterdpd:
+    case x86::Inst::kIdVpscatterdq:
+    case x86::Inst::kIdVscatterqps:
+    case x86::Inst::kIdVpscatterqd:
+    case x86::Inst::kIdVscatterqpd:
+    case x86::Inst::kIdVpscatterqq: {
+      for (uint32_t n = 0; n < _nUnroll; n++) {
+        x86::Vec index = x86::xmm7.cloneAs(o0[0].as<x86::Vec>());
+        x86::Vec src = x86::xmm6.cloneAs(o1[0].as<x86::Vec>());
+        x86::KReg pred = ox[n].as<x86::KReg>();
+
+        a.kmovw(pred, x86::k7);
+        if (!_overheadOnly)
+          a.k(pred).emit(instId, x86::ptr(gsBase, index, gsIndexShift, n * 8), src);
+
+        uint32_t indexCount = index.size() / (scatterIndexSize(instId) / 8u);
+        uint32_t srcCount = src.size() / (scatterElementSize(instId) / 8u);
+        uint32_t elementCount = asmjit::Support::min(indexCount, srcCount);
+
+        // Read the last scattered write to create a dependency for another scatter.
+        if (!isParallel) {
+          if (index.isXmm())
+            a.vpaddd(index, index, x86::ptr(gsBase, n * 8 + ((elementCount - 1) * 128))._1to4());
+          else if (index.isYmm())
+            a.vpaddd(index, index, x86::ptr(gsBase, n * 8 + ((elementCount - 1) * 128))._1to8());
+          else
+            a.vpaddd(index, index, x86::ptr(gsBase, n * 8 + ((elementCount - 1) * 128))._1to16());
+        }
+      }
+
       break;
     }
 

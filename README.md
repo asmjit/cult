@@ -31,8 +31,8 @@ Features
 TODOs
 -----
 
+  * [ ] Instructions that have all registers read only or instructions that only use a single write-only register do not properly show latencies as there is no dependency in the sequence of instructions generated.
   * [ ] Instructions that require consecutive registers (`vp4dpwssd[s]`, `v4f[n]madd{ps|ss}`, `vp2intersect{d|q}`) are not checked at the moment.
-  * [ ] Instructions having memory operand are not checked as well.
 
 Building
 --------
