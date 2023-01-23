@@ -16,7 +16,7 @@ Online Access
 Introduction
 ------------
 
-CULT (**CPU Ultimate Latency Test**) is a tool that runs series of tests that help to estimate how many cycles an X86 processor (both 32-bit or 64-bit modes supported) takes to execute available instructions. The tool should help people that generate code for X86/X64 hardware by allowing them to run tests on their machines themselves instead of relying on informations from CPU vendors or third parties that may be incomplete or that may not provide information for all targetted hardware.
+CULT (**CPU Ultimate Latency Test**) is a tool that runs series of tests that help to estimate how many cycles an X86 processor (both 32-bit or 64-bit modes supported) takes to execute available instructions. The tool should help people that generate code for X86/X64 hardware by allowing them to run tests on their machines themselves instead of relying on information from CPU vendors or third parties that may be incomplete or that may not provide information for all targeted hardware.
 
 The purpose of CULT is to benchmark as many CPUs as possible, to index the results, and to make them searchable, comparable, and accessible online. This information can be then used for various purposes, like statistics about average latencies of certain instructions (like addition, multiplication, and division) of modern CPUs compared to their predecessors, or as a comparison between various CPU generations for people that still write hand-written assembly to optimize certain operations. The output of CULT is JSON for making the results easier to process by third party tools.
 

@@ -159,7 +159,7 @@ static bool isIgnoredInst(InstId instId) {
          instId == x86::Inst::kIdVp2intersectq;
 }
 
-// Returns true when the instruciton is safe to be benchmarked.
+// Returns true when the instruction is safe to be benchmarked.
 //
 // There is many general purpose instructions including system ones. We only
 // benchmark those that may appear commonly in user code, but not in kernel.
@@ -1664,7 +1664,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
                 a.emitOpArray(instId, ops, opCount);
               }
 
-              auto emitSequencialOp = [&](const BaseReg& reg, bool isDst) {
+              auto emitSequentialOp = [&](const BaseReg& reg, bool isDst) {
                 if (x86::Reg::isGp(reg)) {
                   if (isDst)
                     a.add(x86::eax, reg.as<x86::Gp>().r32());
@@ -1697,9 +1697,9 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
                 }
               };
 
-              emitSequencialOp(dst, true);
+              emitSequentialOp(dst, true);
               if (o1[0].isReg())
-                emitSequencialOp(o1[0].as<BaseReg>(), false);
+                emitSequentialOp(o1[0].as<BaseReg>(), false);
             }
             break;
           }
