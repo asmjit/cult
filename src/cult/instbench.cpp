@@ -1774,7 +1774,7 @@ void InstBench::afterBody(x86::Assembler& a) {
   if (isMMX(_instId, _instSpec))
     a.emms();
 
-  if (isVec(_instId, _instSpec))
+  if (isAVX(_instId, _instSpec))
     a.vzeroupper();
 }
 
