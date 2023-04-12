@@ -213,57 +213,80 @@ void CpuDetect::_queryCpuInfo() {
       uarch = "Pentium";
       switch (_modelId) {
         case 0x04:
-        case 0x08: uarch = "Pentium MMX"   ; break;
-        case 0x09: uarch = "Quark"         ; break;
+        case 0x08: uarch = "Pentium MMX"; break;
+        case 0x09: uarch = "Quark"; break;
       }
     }
 
     if (_familyId == 0x06) {
       switch (_modelId) {
-        case 0x01: uarch = "Pentium Pro"   ; break;
-        case 0x03: uarch = "Pentium 2"     ; break;
-        case 0x05: uarch = "Pentium 2"     ; break;
-        case 0x06: uarch = "Pentium 2"     ; break;
-        case 0x07: uarch = "Pentium 3"     ; break;
-        case 0x08: uarch = "Pentium 3"     ; break;
-        case 0x09: uarch = "Pentium M"     ; break;
-        case 0x0A: uarch = "Pentium 3"     ; break;
-        case 0x0B: uarch = "Pentium 3"     ; break;
-        case 0x0D: uarch = "Pentium M"     ; break;
-        case 0x0E: uarch = "Yonah"         ; break;
-        case 0x0F: uarch = "Merom"         ; break;
-        case 0x15: uarch = "Pentium M"     ; break;
-        case 0x16: uarch = "Merom"         ; break;
-        case 0x17: uarch = "Penryn"        ; break;
-        case 0x1A: uarch = "Nehalem"       ; break;
-        case 0x1C: uarch = "Bonnell"       ; break;
-        case 0x1D: uarch = "Penryn"        ; break;
-        case 0x1E: uarch = "Nehalem"       ; break;
-        case 0x25: uarch = "Westmere"      ; break;
-        case 0x26: uarch = "Bonnell"       ; break;
-        case 0x27: uarch = "Bonnell"       ; break;
-        case 0x2A: uarch = "Sandy Bridge"  ; break;
-        case 0x2C: uarch = "Westmere"      ; break;
-        case 0x2D: uarch = "Sandy Bridge"  ; break;
-        case 0x2E: uarch = "Nehalem"       ; break;
-        case 0x2F: uarch = "Westmere"      ; break;
-        case 0x35: uarch = "Bonnell"       ; break;
-        case 0x36: uarch = "Bonnell"       ; break;
-        case 0x37: uarch = "Solvermont"    ; break;
-        case 0x3A: uarch = "Ivy Bridge"    ; break;
-        case 0x3C: uarch = "Haswell"       ; break;
-        case 0x3D: uarch = "Broadwell"     ; break;
-        case 0x3E: uarch = "Ivy Bridge"    ; break;
-        case 0x3F: uarch = "Haswell"       ; break;
-        case 0x45: uarch = "Haswell"       ; break;
-        case 0x46: uarch = "Haswell"       ; break;
-        case 0x4A: uarch = "Solvermont"    ; break;
-        case 0x4D: uarch = "Solvermont"    ; break;
-        case 0x4E: uarch = "Skylake"       ; break;
-        case 0x55: uarch = "Cascade Lake"  ; break;
-        case 0x5E: uarch = "Skylake"       ; break;
-        case 0x8E: uarch = "Kaby Lake"     ; break;
-        case 0x9E: uarch = "Kaby Lake"     ; break;
+        case 0x01: uarch = "Pentium Pro"; break;
+        case 0x03: uarch = "Pentium 2"; break;
+        case 0x05: uarch = "Pentium 2"; break;
+        case 0x06: uarch = "Pentium 2"; break;
+        case 0x07: uarch = "Pentium 3"; break;
+        case 0x08: uarch = "Pentium 3"; break;
+        case 0x09: uarch = "Pentium M"; break;
+        case 0x0A: uarch = "Pentium 3"; break;
+        case 0x0B: uarch = "Pentium 3"; break;
+        case 0x0D: uarch = "Pentium M"; break;
+        case 0x0E: uarch = "Pentium M"; break;
+        case 0x0F: uarch = "Core"; break;
+        case 0x15: uarch = "Pentium M"; break;
+        case 0x16: uarch = "Core"; break;
+        case 0x17: uarch = "Penryn"; break;
+        case 0x1A: uarch = "Nehalem"; break;
+        case 0x1C: uarch = "Bonnell"; break;
+        case 0x1D: uarch = "Penryn"; break;
+        case 0x1E: uarch = "Nehalem"; break;
+        case 0x25: uarch = "Westmere"; break;
+        case 0x26: uarch = "Bonnell"; break;
+        case 0x27: uarch = "Saltwell"; break;
+        case 0x2A: uarch = "Sandy Bridge"; break;
+        case 0x2C: uarch = "Westmere"; break;
+        case 0x2D: uarch = "Sandy Bridge"; break;
+        case 0x2E: uarch = "Nehalem"; break;
+        case 0x2F: uarch = "Westmere"; break;
+        case 0x35: uarch = "Saltwell"; break;
+        case 0x36: uarch = "Saltwell"; break;
+        case 0x37: uarch = "Silvermont"; break;
+        case 0x3A: uarch = "Ivy Bridge"; break;
+        case 0x3C: uarch = "Haswell"; break;
+        case 0x3D: uarch = "Broadwell"; break;
+        case 0x3E: uarch = "Ivy Bridge"; break;
+        case 0x3F: uarch = "Haswell"; break;
+        case 0x45: uarch = "Haswell"; break;
+        case 0x46: uarch = "Haswell"; break;
+        case 0x4A: uarch = "Silvermont"; break;
+        case 0x4C: uarch = "Airmont"; break;
+        case 0x4D: uarch = "Silvermont"; break;
+        case 0x4E: uarch = "Skylake"; break;
+        case 0x4F: uarch = "Broadwell"; break;
+        case 0x55: uarch = "Cascade Lake"; break;
+        case 0x56: uarch = "Broadwell"; break;
+        case 0x5A: uarch = "Silvermont"; break;
+        case 0x5C: uarch = "Goldmont"; break;
+        case 0x5D: uarch = "Silvermont"; break;
+        case 0x5E: uarch = "Skylake"; break;
+        case 0x5F: uarch = "Goldmont"; break;
+        case 0x66: uarch = "Cannon Lake"; break;
+        case 0x6A: uarch = "Ice Lake"; break;
+        case 0x7A: uarch = "Goldmont+"; break;
+        case 0x7D: uarch = "Ice Lake"; break;
+        case 0x7E: uarch = "Ice Lake"; break;
+        case 0x8A: uarch = "Tremont"; break;
+        case 0x8C: uarch = "Tiger Lake"; break;
+        case 0x8D: uarch = "Tiger Lake"; break;
+        case 0x8E: uarch = "Kaby Lake"; break;
+        case 0x8F: uarch = "Sapphire Rapids"; break;
+        case 0x97: uarch = "Alder Lake"; break;
+        case 0x9A: uarch = "Alder Lake"; break;
+        case 0x9E: uarch = "Kaby Lake"; break;
+        case 0xA5: uarch = "Comet Lake"; break;
+        case 0xA7: uarch = "Rocket Lake"; break;
+        case 0xB7: uarch = "Raptor Lake"; break;
+        case 0x96: uarch = "Tremont"; break;
+        case 0x9C: uarch = "Tremont"; break;
       }
     }
 
@@ -276,13 +299,13 @@ void CpuDetect::_queryCpuInfo() {
 
     if (_familyId == 0x0F) {
       switch (_modelId) {
-        case 0x00: uarch = "Pentium 4"     ; break;
-        case 0x01: uarch = "Pentium 4"     ; break;
-        case 0x02: uarch = "Pentium 4"     ; break;
-        case 0x03: uarch = "Prescott"      ; break;
-        case 0x04: uarch = "Prescott"      ; break;
-        case 0x06: uarch = "Prescott"      ; break;
-        case 0x0D: uarch = "Dothan"        ; break;
+        case 0x00: uarch = "Pentium 4"; break;
+        case 0x01: uarch = "Pentium 4"; break;
+        case 0x02: uarch = "Pentium 4"; break;
+        case 0x03: uarch = "Prescott"; break;
+        case 0x04: uarch = "Prescott"; break;
+        case 0x06: uarch = "Prescott"; break;
+        case 0x0D: uarch = "Pentium M"; break;
       }
     }
   }

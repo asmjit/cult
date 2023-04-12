@@ -1405,6 +1405,13 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       for (i = 0; i < _nUnroll; i++)
         o1[i].as<x86::Reg>().setId(1);
       break;
+
+    case x86::Inst::kIdMaskmovdqu:
+    case x86::Inst::kIdVmaskmovdqu:
+      a.lea(a.zdi(), x86::ptr(a.zsp()));
+      for (uint32_t i = 0; i < _nUnroll; i++)
+        o2[i] = x86::ptr(a.zdi());
+      break;
   }
 
   a.test(rCnt, rCnt);
