@@ -1256,10 +1256,28 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       //       INST v2, v2, v3
       //       ...
       case 3:
-        if (!isParallel)
-          rStart = (i < 2) ? 1 : 0;
-        else
-          rStart = (i < 2) ? 0 : 1;
+        if (instId == x86::Inst::kIdVfcmaddcph ||
+            instId == x86::Inst::kIdVfmaddcph  ||
+            instId == x86::Inst::kIdVfcmaddcsh ||
+            instId == x86::Inst::kIdVfmaddcsh  ||
+            instId == x86::Inst::kIdVfcmulcsh  ||
+            instId == x86::Inst::kIdVfmulcsh   ||
+            instId == x86::Inst::kIdVfcmulcph  ||
+            instId == x86::Inst::kIdVfmulcph) {
+          if (!isParallel) {
+            rStart = i == 0 ? 1 : 0;
+          }
+          else {
+            rStart = i == 0 ? 0 : 1;
+            rInc = 2;
+          }
+        }
+        else {
+          if (!isParallel)
+            rStart = (i < 2) ? 1 : 0;
+          else
+            rStart = (i < 2) ? 0 : 1;
+        }
         break;
 
       // Patterns we want to generate:
