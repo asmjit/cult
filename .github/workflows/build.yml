@@ -13,56 +13,46 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { title: "linux"         , os: "ubuntu-latest" , cc: "gcc"     , arch: "x64", build_type: "Release", problem_matcher: "cpp" }
-          - { title: "windows"       , os: "windows-latest", cc: "vs2022"  , arch: "x64", build_type: "Release", problem_matcher: "cpp" }
-          - { title: "macos"         , os: "macos-latest"  , cc: "clang"   , arch: "x64", build_type: "Release", problem_matcher: "cpp" }
+          - { title: "linux"         , host: "ubuntu-latest" , cc: "gcc"     , arch: "x64", conf: "Release" }
+          - { title: "windows"       , host: "windows-latest", cc: "vs2022"  , arch: "x64", conf: "Release" }
+          - { title: "macos"         , host: "macos-13"      , cc: "clang"   , arch: "x64", conf: "Release" }
 
-    name: "${{matrix.title}} (${{matrix.cc}}, ${{matrix.arch}}, ${{matrix.build_type}})"
-    runs-on: "${{matrix.os}}"
+    name: "${{matrix.title}} (${{matrix.cc}}, ${{matrix.arch}}, ${{matrix.conf}})"
+    runs-on: "${{matrix.host}}"
 
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: "source"
 
-      - name: "Checkout asmjit"
-        run: git clone https://github.com/asmjit/asmjit.git asmjit --depth=1
+      - name: "Checkout AsmJit"
+        uses: actions/checkout@v4
+        with:
+          repository: asmjit/asmjit
+          path: "asmjit"
 
-      - name: "Checkout build-actions"
-        run: git clone https://github.com/build-actions/build-actions.git build-actions --depth=1
+      - name: "Checkout Build Actions"
+        uses: actions/checkout@v4
+        with:
+          repository: build-actions/build-actions
+          path: "build-actions"
 
       - name: "Python"
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
-      - name: "Prepare"
+      - name: "Build & Test - Native"
         run: python build-actions/action.py
-                    --step=prepare
-                    --compiler=${{matrix.cc}}
-                    --diagnostics=${{matrix.diagnostics}}
-                    --architecture=${{matrix.arch}}
+               --source-dir=source
+               --config=source/.github/workflows/build-config.json
+               --compiler=${{matrix.cc}}
+               --architecture=${{matrix.arch}}
+               --problem-matcher=auto
+               --build-type=${{matrix.conf}}
 
-      - name: "Configure"
-        run: python build-actions/action.py
-                    --step=configure
-                    --config=source/.github/workflows/build-config.json
-                    --source-dir=source
-                    --compiler=${{matrix.cc}}
-                    --diagnostics=${{matrix.diagnostics}}
-                    --architecture=${{matrix.arch}}
-                    --build-type=${{matrix.build_type}}
-                    --build-defs=${{matrix.defs}}
-                    --problem-matcher=${{matrix.problem_matcher}}
-
-      - name: "Build"
-        run: python build-actions/action.py --step=build
-
-      - name: "Test"
-        run: python build-actions/action.py --step=test
-
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: "cult-${{matrix.title}}"
           path: |
