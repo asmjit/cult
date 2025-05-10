@@ -613,7 +613,7 @@ void InstBench::run() {
     /*
     if (specs.size() == 0) {
       asmjit::String name;
-      InstAPI::instIdToString(Environment::kArchHost, instId, name);
+      InstAPI::instIdToString(Environment::kArchHost, instId, InstStringifyOptions::kNone, name);
       printf("MISSING SPEC: %s\n", name.data());
     }
     */
@@ -638,7 +638,7 @@ void InstBench::run() {
           sb.append("call+ret");
         }
         else {
-          InstAPI::instIdToString(Arch::kHost, instId, sb);
+          InstAPI::instIdToString(Arch::kHost, instId, InstStringifyOptions::kNone, sb);
         }
 
         for (uint32_t i = 0; i < opCount; i++) {
@@ -982,7 +982,7 @@ double InstBench::testInstruction(InstId instId, InstSpec instSpec, uint32_t par
   Func func = compileFunc();
   if (!func) {
     String name;
-    InstAPI::instIdToString(Arch::kHost, instId, name);
+    InstAPI::instIdToString(Arch::kHost, instId, InstStringifyOptions::kNone, name);
     printf("FAILED to compile function for '%s' instruction\n", name.data());
     return -1.0;
   }
