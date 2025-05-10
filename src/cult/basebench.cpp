@@ -38,7 +38,7 @@ BaseBench::Func BaseBench::compileFunc() {
   a.addDiagnosticOptions(DiagnosticOptions::kValidateAssembler);
 
   FuncDetail fd;
-  fd.init(FuncSignatureT<void, uint32_t, uint64_t*>(CallConvId::kCDecl), code.environment());
+  fd.init(FuncSignature::build<void, uint32_t, uint64_t*>(CallConvId::kCDecl), code.environment());
 
   FuncFrame frame;
   frame.init(fd);
@@ -71,7 +71,8 @@ BaseBench::Func BaseBench::compileFunc() {
   beforeBody(a);
 
   a.xor_(x86::eax, x86::eax);
-  a.cpuid();
+  a.mfence();
+  a.lfence();
   a.rdtsc();
   a.mov(mCyclesLo, x86::eax);
   a.mov(mCyclesHi, x86::edx);
@@ -82,25 +83,19 @@ BaseBench::Func BaseBench::compileFunc() {
   // --- Benchmark epilog ---
   if (x86Features().hasRDTSCP()) {
     a.rdtscp();
-    a.mov(x86::esi, x86::eax);
-    a.mov(x86::edi, x86::edx);
-    a.xor_(x86::eax, x86::eax);
-    a.cpuid();
+    a.lfence();
   }
   else {
-    if (x86Features().hasSSE2())
-      a.lfence();
+    a.lfence();
     a.rdtsc();
-    a.mov(x86::esi, x86::eax);
-    a.mov(x86::edi, x86::edx);
   }
 
   a.mov(rOut, mOut);
-  a.sub(x86::esi, mCyclesLo);
-  a.sbb(x86::edi, mCyclesHi);
+  a.sub(x86::eax, mCyclesLo);
+  a.sbb(x86::edx, mCyclesHi);
 
-  a.mov(x86::ptr(rOut, 0), x86::esi);
-  a.mov(x86::ptr(rOut, 4), x86::edi);
+  a.mov(x86::ptr(rOut, 0), x86::eax);
+  a.mov(x86::ptr(rOut, 4), x86::edx);
 
   // --- Function epilog ---
   afterBody(a);

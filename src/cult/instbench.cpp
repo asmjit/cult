@@ -149,13 +149,7 @@ public:
 
 // TODO: These require pretty special register pattern - not tested yet.
 static bool isIgnoredInst(InstId instId) {
-  return instId == x86::Inst::kIdVp4dpwssd ||
-         instId == x86::Inst::kIdVp4dpwssds ||
-         instId == x86::Inst::kIdV4fmaddps ||
-         instId == x86::Inst::kIdV4fmaddss ||
-         instId == x86::Inst::kIdV4fnmaddps ||
-         instId == x86::Inst::kIdV4fnmaddss ||
-         instId == x86::Inst::kIdVp2intersectd ||
+  return instId == x86::Inst::kIdVp2intersectd ||
          instId == x86::Inst::kIdVp2intersectq;
 }
 
@@ -592,12 +586,12 @@ uint32_t InstBench::localStackSize() const {
 void InstBench::run() {
   JSONBuilder& json = _app->json();
 
-  uint64_t tsc_freq = CpuUtils::get_tsc_freq();
-
   if (_app->verbose()) {
-    if (tsc_freq)
-      printf("Detected TSC frequency: %llu\n", (unsigned long long)tsc_freq);
     printf("Benchmark (latency & reciprocal throughput):\n");
+    uint64_t tsc_freq = CpuUtils::get_tsc_freq();
+    if (tsc_freq) {
+      printf("TSC Frequency: %llu\n", (unsigned long long)(tsc_freq));
+    }
   }
 
   json.beforeRecord()
@@ -640,10 +634,12 @@ void InstBench::run() {
 
       for (uint32_t alignment : alignments) {
         StringTmp<256> sb;
-        if (instId == x86::Inst::kIdCall)
+        if (instId == x86::Inst::kIdCall) {
           sb.append("call+ret");
-        else
+        }
+        else {
           InstAPI::instIdToString(Arch::kHost, instId, sb);
+        }
 
         for (uint32_t i = 0; i < opCount; i++) {
           if (i == 0)
@@ -994,12 +990,12 @@ double InstBench::testInstruction(InstId instId, InstSpec instSpec, uint32_t par
   uint32_t nIter = numIterByInstId(_instId);
 
   // Consider a significant improvement 0.05 cycles per instruction (0.2 cycles in fast mode).
-  uint32_t kSignificantImprovement = uint32_t(double(nIter) * (_app->_estimate ? 0.25 : 0.05));
+  uint32_t kSignificantImprovement = uint32_t(double(nIter) * (_app->_estimate ? 0.25 : 0.04));
 
   // If we called the function N times without a significant improvement we terminate the test.
   uint32_t kMaximumImprovementTries = _app->_estimate ? 1000 : 50000;
 
-  uint32_t kMaxIterationCount = 1000000;
+  constexpr uint32_t kMaxIterationCount = 5000000;
 
   uint64_t best;
   func(nIter, &best);
@@ -1105,10 +1101,12 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   InstId instId = _instId;
   const x86::InstDB::InstInfo& instInfo = x86::InstDB::infoById(instId);
 
-  uint32_t rMask[32] = { 0 };
+  uint32_t rMask[32] {};
 
-  rMask[uint32_t(RegGroup::kGp)] = 0xFF & ~Support::bitMask(x86::Gp::kIdSp, rCnt.id());
-  rMask[uint32_t(RegGroup::kVec)] = 0xFF;
+  uint32_t genericRegMask = is64Bit() ? 0xFFFFu : 0xFFu;
+
+  rMask[uint32_t(RegGroup::kGp)] = genericRegMask & ~Support::bitMask(x86::Gp::kIdSp, rCnt.id());
+  rMask[uint32_t(RegGroup::kVec)] = genericRegMask;
   rMask[uint32_t(RegGroup::kX86_K)] = 0xFE;
   rMask[uint32_t(RegGroup::kX86_MM)] = 0xFF;
 
@@ -1391,11 +1389,22 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     case x86::Inst::kIdBts:
       // Don't go beyond our buffer in mem case.
       a.mov(x86::eax, 3);
-      a.mov(x86::ebx, 14);
-      a.mov(x86::ecx, 35);
-      a.mov(x86::edx, 256);
-      a.mov(x86::esi, 577);
-      a.mov(x86::edi, 1198);
+      a.mov(x86::ebx, 4);
+      a.mov(x86::ecx, 5);
+      a.mov(x86::edx, 6);
+      a.mov(x86::esi, 7);
+      a.mov(x86::edi, 1);
+
+      if (is64Bit()) {
+        a.mov(x86::r8, 2);
+        a.mov(x86::r9, 3);
+        a.mov(x86::r10, 4);
+        a.mov(x86::r11, 5);
+        a.mov(x86::r12, 6);
+        a.mov(x86::r13, 7);
+        a.mov(x86::r14, 0);
+        a.mov(x86::r15, 1);
+      }
       break;
 
     default:
@@ -1424,6 +1433,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
         o1[i].as<x86::Reg>().setId(1);
       break;
 
+    case x86::Inst::kIdMaskmovq:
     case x86::Inst::kIdMaskmovdqu:
     case x86::Inst::kIdVmaskmovdqu:
       a.lea(a.zdi(), x86::ptr(a.zsp()));
