@@ -38,7 +38,7 @@ set(CULT_SRC
 
 add_executable(cult ${CULT_SRC})
 target_link_libraries(cult asmjit::asmjit)
-target_compile_features(cult PUBLIC cxx_std_11)
+target_compile_features(cult PUBLIC cxx_std_17)
 set_property(TARGET cult PROPERTY CXX_VISIBILITY_PRESET hidden)
 
 if (WIN32)
