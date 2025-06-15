@@ -480,7 +480,7 @@ static void fillRegArray(Operand* dst, uint32_t count, uint32_t rStart, uint32_t
 
   uint32_t rId = rStart % rIdCount;
   for (uint32_t i = 0; i < count; i++) {
-    dst[i] = BaseReg(OperandSignature{rSign}, rIdArray[rId]);
+    dst[i] = Reg(OperandSignature{rSign}, rIdArray[rId]);
     rId = (rId + rInc) % rIdCount;
   }
 }
@@ -1107,7 +1107,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 
   rMask[uint32_t(RegGroup::kGp)] = genericRegMask & ~Support::bitMask(x86::Gp::kIdSp, rCnt.id());
   rMask[uint32_t(RegGroup::kVec)] = genericRegMask;
-  rMask[uint32_t(RegGroup::kX86_K)] = 0xFE;
+  rMask[uint32_t(RegGroup::kMask)] = 0xFE;
   rMask[uint32_t(RegGroup::kX86_MM)] = 0xFF;
 
   x86::Gp gsBase;
@@ -1124,7 +1124,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
     gsBase = a.zdi();
     rMask[uint32_t(RegGroup::kGp)] &= ~Support::bitMask(gsBase.id());
     rMask[uint32_t(RegGroup::kVec)] &= ~Support::bitMask(6, 7);
-    rMask[uint32_t(RegGroup::kX86_K)] &= ~Support::bitMask(6, 7);
+    rMask[uint32_t(RegGroup::kMask)] &= ~Support::bitMask(6, 7);
 
     if (is64Bit())
       rMask[uint32_t(RegGroup::kVec)] |= isGatherAVX512 ? 0xFFFFFF00u : 0x0000FF00u;
@@ -1188,7 +1188,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
   }
 
   if (isGatherAVX512 || isScatterAVX512) {
-    fillRegArray(ox, _nUnroll, 1, isParallel ? 1 : 0, rMask[uint32_t(RegGroup::kX86_K)], x86::RegTraits<RegType::kX86_KReg>::kSignature);
+    fillRegArray(ox, _nUnroll, 1, isParallel ? 1 : 0, rMask[uint32_t(RegGroup::kMask)], RegTraits<RegType::kMask>::kSignature);
   }
   else if (isGather) {
     // Don't count mask in AVX2 gather case.
@@ -1316,17 +1316,17 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       case InstSpec::kOpRbx   : fillOpArray(dst, _nUnroll, x86::rbx); break;
       case InstSpec::kOpRcx   : fillOpArray(dst, _nUnroll, x86::rcx); break;
       case InstSpec::kOpRdx   : fillOpArray(dst, _nUnroll, x86::rdx); break;
-      case InstSpec::kOpGpb   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], x86::RegTraits<RegType::kX86_GpbLo>::kSignature); break;
-      case InstSpec::kOpGpw   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], x86::RegTraits<RegType::kX86_Gpw>::kSignature); break;
-      case InstSpec::kOpGpd   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], x86::RegTraits<RegType::kX86_Gpd>::kSignature); break;
-      case InstSpec::kOpGpq   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], x86::RegTraits<RegType::kX86_Gpq>::kSignature); break;
+      case InstSpec::kOpGpb   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], RegTraits<RegType::kGp8Lo>::kSignature); break;
+      case InstSpec::kOpGpw   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], RegTraits<RegType::kGp16>::kSignature); break;
+      case InstSpec::kOpGpd   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], RegTraits<RegType::kGp32>::kSignature); break;
+      case InstSpec::kOpGpq   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kGp)], RegTraits<RegType::kGp64>::kSignature); break;
 
       case InstSpec::kOpXmm0  : fillOpArray(dst, _nUnroll, x86::xmm0); break;
-      case InstSpec::kOpXmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Xmm>::kSignature); break;
-      case InstSpec::kOpYmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Ymm>::kSignature); break;
-      case InstSpec::kOpZmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Zmm>::kSignature); break;
-      case InstSpec::kOpKReg  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_K)], x86::RegTraits<RegType::kX86_KReg>::kSignature); break;
-      case InstSpec::kOpMm    : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_MM)], x86::RegTraits<RegType::kX86_Mm >::kSignature); break;
+      case InstSpec::kOpXmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec128>::kSignature); break;
+      case InstSpec::kOpYmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec256>::kSignature); break;
+      case InstSpec::kOpZmm   : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec512>::kSignature); break;
+      case InstSpec::kOpKReg  : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kMask)], RegTraits<RegType::kMask>::kSignature); break;
+      case InstSpec::kOpMm    : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kX86_MM)], RegTraits<RegType::kX86_Mm >::kSignature); break;
 
       case InstSpec::kOpImm8  : fillImmArray(dst, _nUnroll, 0, 1    , 15        ); break;
       case InstSpec::kOpImm16 : fillImmArray(dst, _nUnroll, 1, 13099, 65535     ); break;
@@ -1341,12 +1341,12 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
       case InstSpec::kOpMem256: fillMemArray(dst, _nUnroll, x86::ymmword_ptr(a.zsp(), misalignment), isParallel ? 32 : 0); break;
       case InstSpec::kOpMem512: fillMemArray(dst, _nUnroll, x86::zmmword_ptr(a.zsp(), misalignment), isParallel ? 64 : 0); break;
 
-      case InstSpec::kOpVm32x : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Xmm>::kSignature); break;
-      case InstSpec::kOpVm32y : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Ymm>::kSignature); break;
-      case InstSpec::kOpVm32z : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Zmm>::kSignature); break;
-      case InstSpec::kOpVm64x : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Xmm>::kSignature); break;
-      case InstSpec::kOpVm64y : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Ymm>::kSignature); break;
-      case InstSpec::kOpVm64z : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], x86::RegTraits<RegType::kX86_Zmm>::kSignature); break;
+      case InstSpec::kOpVm32x : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec128>::kSignature); break;
+      case InstSpec::kOpVm32y : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec256>::kSignature); break;
+      case InstSpec::kOpVm32z : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec512>::kSignature); break;
+      case InstSpec::kOpVm64x : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec128>::kSignature); break;
+      case InstSpec::kOpVm64y : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec256>::kSignature); break;
+      case InstSpec::kOpVm64z : fillRegArray(dst, _nUnroll, rStart, rInc, rMask[uint32_t(RegGroup::kVec)], RegTraits<RegType::kVec512>::kSignature); break;
     }
   }
 
@@ -1652,9 +1652,9 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 
         // Read the last scattered write to create a dependency for another scatter.
         if (!isParallel) {
-          if (index.isXmm())
+          if (index.isVec128())
             a.vpaddd(index, index, x86::ptr(gsBase, n * 8 + ((elementCount - 1) * 128))._1to4());
-          else if (index.isYmm())
+          else if (index.isVec256())
             a.vpaddd(index, index, x86::ptr(gsBase, n * 8 + ((elementCount - 1) * 128))._1to8());
           else
             a.vpaddd(index, index, x86::ptr(gsBase, n * 8 + ((elementCount - 1) * 128))._1to16());
@@ -1676,13 +1676,13 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 
           const x86::Reg& dst = o0[0].as<x86::Reg>();
 
-          if (opCount >= 2 && (o1[0].isReg() && o1[0].as<BaseReg>().group() == dst.group()))
+          if (opCount >= 2 && (o1[0].isReg() && o1[0].as<Reg>().regGroup() == dst.regGroup()))
             sameKind = true;
 
-          if (opCount >= 3 && (o2[0].isReg() && o2[0].as<BaseReg>().group() == dst.group()))
+          if (opCount >= 3 && (o2[0].isReg() && o2[0].as<Reg>().regGroup() == dst.regGroup()))
             sameKind = true;
 
-          if (opCount >= 4 && (o3[0].isReg() && o3[0].as<BaseReg>().group() == dst.group()))
+          if (opCount >= 4 && (o3[0].isReg() && o3[0].as<Reg>().regGroup() == dst.regGroup()))
             sameKind = true;
 
           // These have the same kind in 'reg, reg' case, however, some registers are fixed so we workaround it this way.
@@ -1699,32 +1699,32 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
                 a.emitOpArray(instId, ops, opCount);
               }
 
-              auto emitSequentialOp = [&](const BaseReg& reg, bool isDst) {
-                if (x86::Reg::isGp(reg)) {
+              auto emitSequentialOp = [&](const Reg& reg, bool isDst) {
+                if (reg.isGp()) {
                   if (isDst)
                     a.add(x86::eax, reg.as<x86::Gp>().r32());
                   else
                     a.add(reg.as<x86::Gp>().r32(), reg.as<x86::Gp>().r32());
                 }
-                else if (x86::Reg::isKReg(reg)) {
+                else if (reg.isMaskReg()) {
                   if (isDst)
                     a.korw(x86::k7, x86::k7, reg.as<x86::KReg>());
                   else
                     a.korw(reg.as<x86::KReg>(), x86::k7, reg.as<x86::KReg>());
                 }
-                else if (x86::Reg::isMm(reg)) {
+                else if (reg.isMmReg()) {
                   if (isDst)
                     a.paddb(x86::mm7, reg.as<x86::Mm>());
                   else
                     a.paddb(reg.as<x86::Mm>(), reg.as<x86::Mm>());
                 }
-                else if (x86::Reg::isXmm(reg) && !instInfo.isVexOrEvex()) {
+                else if (reg.isVec128() && !instInfo.isVexOrEvex()) {
                   if (isDst)
-                    a.paddb(x86::xmm7, reg.as<x86::Xmm>());
+                    a.paddb(x86::xmm7, reg.as<x86::Vec>());
                   else
-                    a.paddb(reg.as<x86::Xmm>(), reg.as<x86::Xmm>());
+                    a.paddb(reg.as<x86::Vec>(), reg.as<x86::Vec>());
                 }
-                else if (x86::Reg::isVec(reg)) {
+                else if (reg.isVec()) {
                   if (isDst)
                     a.vpaddb(x86::xmm7, x86::xmm7, reg.as<x86::Vec>().xmm());
                   else
@@ -1734,7 +1734,7 @@ void InstBench::compileBody(x86::Assembler& a, x86::Gp rCnt) {
 
               emitSequentialOp(dst, true);
               if (o1[0].isReg())
-                emitSequentialOp(o1[0].as<BaseReg>(), false);
+                emitSequentialOp(o1[0].as<Reg>(), false);
             }
             break;
           }
