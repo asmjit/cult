@@ -11,14 +11,14 @@ inline void fix_brand_string(char* str) {
 }
 
 CpuDetect::CpuDetect(App* app) : _app(app) {
-  _modelId = 0;
-  _familyId = 0;
-  _steppingId = 0;
+  _model_id = 0;
+  _family_id = 0;
+  _stepping_id = 0;
 
-  ::memset(_vendorString, 0, sizeof(_vendorString));
-  ::memset(_vendorName  , 0, sizeof(_vendorName  ));
-  ::memset(_brandString , 0, sizeof(_brandString ));
-  ::memset(_uarchName   , 0, sizeof(_uarchName   ));
+  ::memset(_vendor_string, 0, sizeof(_vendor_string));
+  ::memset(_vendor_name  , 0, sizeof(_vendor_name  ));
+  ::memset(_brand_string , 0, sizeof(_brand_string ));
+  ::memset(_uarch_name   , 0, sizeof(_uarch_name   ));
 }
 CpuDetect::~CpuDetect() {}
 
@@ -45,15 +45,15 @@ void CpuDetect::_queryCpuData() {
     switch (in.eax) {
       case 0x00u: {
         maxEax = out.eax;
-        ::memcpy(_vendorString + 0, &out.ebx, 4);
-        ::memcpy(_vendorString + 4, &out.edx, 4);
-        ::memcpy(_vendorString + 8, &out.ecx, 4);
+        ::memcpy(_vendor_string + 0, &out.ebx, 4);
+        ::memcpy(_vendor_string + 4, &out.edx, 4);
+        ::memcpy(_vendor_string + 8, &out.ecx, 4);
 
         const char* vendorName = "Unknown";
-        if (::memcmp(_vendorString, "GenuineIntel"   , 12) == 0) vendorName = "Intel";
-        if (::memcmp(_vendorString, "AuthenticAMD"   , 12) == 0) vendorName = "AMD";
-        if (::memcmp(_vendorString, "VIA\0VIA\0VIA\0", 12) == 0) vendorName = "VIA";
-        strcpy(_vendorName, vendorName);
+        if (::memcmp(_vendor_string, "GenuineIntel"   , 12) == 0) vendorName = "Intel";
+        if (::memcmp(_vendor_string, "AuthenticAMD"   , 12) == 0) vendorName = "AMD";
+        if (::memcmp(_vendor_string, "VIA\0VIA\0VIA\0", 12) == 0) vendorName = "VIA";
+        strcpy(_vendor_name, vendorName);
         break;
       }
 
@@ -69,9 +69,9 @@ void CpuDetect::_queryCpuData() {
         if (familyId == 0x0Fu)
           familyId += (out.eax >> 20) & 0xFFu;
 
-        _modelId  = modelId;
-        _familyId = familyId;
-        _steppingId = out.eax & 0x0F;
+        _model_id  = modelId;
+        _family_id = familyId;
+        _stepping_id = out.eax & 0x0F;
         break;
       }
 
@@ -132,7 +132,7 @@ void CpuDetect::_queryCpuData() {
           // Sometimes we just use max possible value and iterate all, if CPU
           // reports invalid call it's fine, we just continue until we reach
           // the limit.
-          if (out.isValid())
+          if (out.is_valid())
             addEntry(in, out);
 
           if (in.ecx == maxEcx)
@@ -161,7 +161,7 @@ void CpuDetect::_queryCpuData() {
 
   maxEax = in.eax;
   cpuid_query(&out, in.eax);
-  uint32_t* brandString = reinterpret_cast<uint32_t*>(_brandString);
+  uint32_t* brandString = reinterpret_cast<uint32_t*>(_brand_string);
 
   for (;;) {
     switch (in.eax) {
@@ -195,31 +195,31 @@ void CpuDetect::_queryCpuData() {
   if (_app->verbose())
     printf("\n");
 
-  fix_brand_string(_brandString);
+  fix_brand_string(_brand_string);
 }
 
 void CpuDetect::_queryCpuInfo() {
   // CPU microarchitecture name.
   const char* uarch = "Unknown";
 
-  if (strcmp(_vendorString, "GenuineIntel") == 0) {
+  if (strcmp(_vendor_string, "GenuineIntel") == 0) {
     uarch = "Unknown";
 
-    if (_familyId <= 0x04) {
+    if (_family_id <= 0x04) {
       uarch = "I486";
     }
 
-    if (_familyId == 0x05) {
+    if (_family_id == 0x05) {
       uarch = "Pentium";
-      switch (_modelId) {
+      switch (_model_id) {
         case 0x04:
         case 0x08: uarch = "Pentium MMX"; break;
         case 0x09: uarch = "Quark"; break;
       }
     }
 
-    if (_familyId == 0x06) {
-      switch (_modelId) {
+    if (_family_id == 0x06) {
+      switch (_model_id) {
         case 0x01: uarch = "Pentium Pro"; break;
         case 0x03: uarch = "Pentium 2"; break;
         case 0x05: uarch = "Pentium 2"; break;
@@ -290,15 +290,15 @@ void CpuDetect::_queryCpuInfo() {
       }
     }
 
-    if (_familyId == 0x0B) {
-      switch (_modelId) {
+    if (_family_id == 0x0B) {
+      switch (_model_id) {
         case 0x01: uarch = "Knights Corner"; break;
         case 0x57: uarch = "Knights Landing"; break;
       }
     }
 
-    if (_familyId == 0x0F) {
-      switch (_modelId) {
+    if (_family_id == 0x0F) {
+      switch (_model_id) {
         case 0x00: uarch = "Pentium 4"; break;
         case 0x01: uarch = "Pentium 4"; break;
         case 0x02: uarch = "Pentium 4"; break;
@@ -310,98 +310,98 @@ void CpuDetect::_queryCpuInfo() {
     }
   }
 
-  if (strcmp(_vendorString, "AuthenticAMD") == 0) {
+  if (strcmp(_vendor_string, "AuthenticAMD") == 0) {
     uarch = "Unknown";
 
-    if (_familyId <= 0x04) {
+    if (_family_id <= 0x04) {
       uarch = "AM486";
-      if (_familyId == 0x04 && _modelId >= 0x0E) {
+      if (_family_id == 0x04 && _model_id >= 0x0E) {
         uarch = "AM586";
       }
     }
 
-    if (_familyId == 0x05) {
+    if (_family_id == 0x05) {
       uarch = "K5";
-      if (_modelId >= 0x06) uarch = "K6";
-      if (_modelId >= 0x08) uarch = "K6-2";
-      if (_modelId >= 0x09) uarch = "K6-3";
+      if (_model_id >= 0x06) uarch = "K6";
+      if (_model_id >= 0x08) uarch = "K6-2";
+      if (_model_id >= 0x09) uarch = "K6-3";
     }
 
-    if (_familyId == 0x06) uarch = "K7";
-    if (_familyId == 0x08) uarch = "K8";
-    if (_familyId == 0x0F) uarch = "K8";
-    if (_familyId == 0x10) uarch = "K10";
-    if (_familyId == 0x11) uarch = "K8";
-    if (_familyId == 0x12) uarch = "K10";
-    if (_familyId == 0x14) uarch = "Bobcat";
+    if (_family_id == 0x06) uarch = "K7";
+    if (_family_id == 0x08) uarch = "K8";
+    if (_family_id == 0x0F) uarch = "K8";
+    if (_family_id == 0x10) uarch = "K10";
+    if (_family_id == 0x11) uarch = "K8";
+    if (_family_id == 0x12) uarch = "K10";
+    if (_family_id == 0x14) uarch = "Bobcat";
 
-    if (_familyId == 0x15) {
+    if (_family_id == 0x15) {
       uarch = "Bulldozer";
-      if (_modelId >= 0x02) uarch = "Piledriver";
-      if (_modelId >= 0x30) uarch = "Steamroller";
-      if (_modelId >= 0x60) uarch = "Excavator";
+      if (_model_id >= 0x02) uarch = "Piledriver";
+      if (_model_id >= 0x30) uarch = "Steamroller";
+      if (_model_id >= 0x60) uarch = "Excavator";
     }
 
-    if (_familyId == 0x16) {
+    if (_family_id == 0x16) {
       uarch = "Jaguar";
-      if (_modelId == 0x30) uarch = "Puma";
+      if (_model_id == 0x30) uarch = "Puma";
     }
 
-    if (_familyId == 0x17) {
+    if (_family_id == 0x17) {
       uarch = "Zen";
 
-      if (_modelId == 0x90) uarch = "Zen 2";
-      if (_modelId == 0x71) uarch = "Zen 2";
-      if (_modelId == 0x68) uarch = "Zen 2";
-      if (_modelId == 0x60) uarch = "Zen 2";
-      if (_modelId == 0x47) uarch = "Zen 2";
-      if (_modelId == 0x31) uarch = "Zen 2";
+      if (_model_id == 0x90) uarch = "Zen 2";
+      if (_model_id == 0x71) uarch = "Zen 2";
+      if (_model_id == 0x68) uarch = "Zen 2";
+      if (_model_id == 0x60) uarch = "Zen 2";
+      if (_model_id == 0x47) uarch = "Zen 2";
+      if (_model_id == 0x31) uarch = "Zen 2";
     }
 
-    if (_familyId == 0x18) {
+    if (_family_id == 0x18) {
       uarch = "Zen / Dhyana";
     }
 
-    if (_familyId == 0x19) {
+    if (_family_id == 0x19) {
       uarch = "Zen 3";
 
-      if (_modelId == 0x61) uarch = "Zen 4";
+      if (_model_id == 0x61) uarch = "Zen 4";
     }
 
-    if (_familyId == 0x1A) {
+    if (_family_id == 0x1A) {
       uarch = "Zen 5";
     }
   }
-  strncpy(_uarchName, uarch, sizeof(_uarchName) - 1);
+  strncpy(_uarch_name, uarch, sizeof(_uarch_name) - 1);
 
   if (_app->verbose()) {
     printf("CpuDetect:\n");
-    printf("  VendorName: %s\n", _vendorName);
-    printf("  VendorString: %s\n", _vendorString);
-    printf("  BrandString: %s\n", _brandString);
-    printf("  uArch: %s\n", _uarchName);
-    printf("  ModelId: 0x%02X\n", _modelId);
-    printf("  FamilyId: 0x%04X\n", _familyId);
-    printf("  SteppingId: 0x%02X\n", _steppingId);
+    printf("  VendorName: %s\n", _vendor_name);
+    printf("  VendorString: %s\n", _vendor_string);
+    printf("  BrandString: %s\n", _brand_string);
+    printf("  uArch: %s\n", _uarch_name);
+    printf("  ModelId: 0x%02X\n", _model_id);
+    printf("  FamilyId: 0x%04X\n", _family_id);
+    printf("  SteppingId: 0x%02X\n", _stepping_id);
     printf("\n");
   }
 
   JSONBuilder& json = _app->json();
-  json.beforeRecord()
-      .addKey("cpuInfo")
-      .openObject()
-        .beforeRecord().addKey("vendorName").addString(_vendorName)
-        .beforeRecord().addKey("vendorString").addString(_vendorString)
-        .beforeRecord().addKey("brandString").addString(_brandString)
-        .beforeRecord().addKey("uarch").addString(_uarchName)
-        .beforeRecord().addKey("modelId").addStringf("0x%02X", _modelId)
-        .beforeRecord().addKey("familyId").addStringf("0x%0002X", _familyId)
-        .beforeRecord().addKey("steppingId").addStringf("0x%02X", _steppingId)
-      .closeObject(true);
+  json.before_record()
+      .add_key("cpuInfo")
+      .open_object()
+        .before_record().add_key("vendorName").add_string(_vendor_name)
+        .before_record().add_key("vendorString").add_string(_vendor_string)
+        .before_record().add_key("brandString").add_string(_brand_string)
+        .before_record().add_key("uarch").add_string(_uarch_name)
+        .before_record().add_key("modelId").add_stringf("0x%02X", _model_id)
+        .before_record().add_key("familyId").add_stringf("0x%0002X", _family_id)
+        .before_record().add_key("steppingId").add_stringf("0x%02X", _stepping_id)
+      .close_object(true);
 }
 
 void CpuDetect::addEntry(const CpuUtils::CpuidIn& in, const CpuUtils::CpuidOut& out) {
-  if (!out.isValid())
+  if (!out.is_valid())
     return;
 
   if (_app->verbose())

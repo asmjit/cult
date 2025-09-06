@@ -6,7 +6,7 @@ class SimpleErrorHandler : public ErrorHandler {
 public:
   inline SimpleErrorHandler() : _err(kErrorOk) {}
 
-  void handleError(Error err, const char * message, BaseEmitter * origin) override {
+  void handle_error(Error err, const char * message, BaseEmitter * origin) override {
     _err = err;
     printf("Assembler Error: %s\n", message);
   }
@@ -20,22 +20,22 @@ BaseBench::BaseBench(App* app)
     _cpuInfo(CpuInfo::host()) {}
 BaseBench::~BaseBench() {}
 
-BaseBench::Func BaseBench::compileFunc() {
+BaseBench::Func BaseBench::compile_func() {
   FileLogger logger(stdout);
   SimpleErrorHandler eh;
 
   CodeHolder code;
 
   code.init(_runtime.environment());
-  code.setErrorHandler(&eh);
+  code.set_error_handler(&eh);
 
   if (_app->dump()) {
-    logger.addFlags(FormatFlags::kMachineCode | FormatFlags::kExplainImms);
-    code.setLogger(&logger);
+    logger.add_flags(FormatFlags::kMachineCode | FormatFlags::kExplainImms);
+    code.set_logger(&logger);
   }
 
   x86::Assembler a(&code);
-  a.addDiagnosticOptions(DiagnosticOptions::kValidateAssembler);
+  a.add_diagnostic_options(DiagnosticOptions::kValidateAssembler);
 
   FuncDetail fd;
   fd.init(FuncSignature::build<void, uint32_t, uint64_t*>(CallConvId::kCDecl), code.environment());
@@ -43,45 +43,45 @@ BaseBench::Func BaseBench::compileFunc() {
   FuncFrame frame;
   frame.init(fd);
 
-  frame.setAllDirty(RegGroup::kGp);
-  frame.setAllDirty(RegGroup::kVec);
-  frame.setLocalStackSize(localStackSize() + 128);
-  frame.setLocalStackAlignment(64);
+  frame.set_all_dirty(RegGroup::kGp);
+  frame.set_all_dirty(RegGroup::kVec);
+  frame.set_local_stack_size(local_stack_size() + 128);
+  frame.set_local_stack_alignment(64);
 
   // Configure some stack vars that we use to save GP regs.
-  x86::Mem stack     = x86::ptr(a.zsp(), localStackSize());
-  x86::Mem mOut      = stack; stack.addOffset(a.registerSize());
-  x86::Mem mCyclesLo = stack; stack.addOffset(4);
-  x86::Mem mCyclesHi = stack; stack.addOffset(4);
+  x86::Mem stack       = x86::ptr(a.zsp(), local_stack_size());
+  x86::Mem m_out       = stack; stack.add_offset(a.register_size());
+  x86::Mem m_cycles_lo = stack; stack.add_offset(4);
+  x86::Mem m_cycles_hi = stack; stack.add_offset(4);
 
-  x86::Gp rCnt = x86::ebp;                 // Cannot be EAX|EBX|ECX|EDX as these are clobbered by CPUID.
-  x86::Gp rOut = a.zbx();                  // Cannot be ESI|EDI as these are used by the cycle counter.
+  x86::Gp reg_cnt = x86::ebp; // Cannot be EAX|EBX|ECX|EDX as these are clobbered by CPUID.
+  x86::Gp reg_out = a.zbx();  // Cannot be ESI|EDI as these are used by the cycle counter.
 
   FuncArgsAssignment args(&fd);
-  args.assignAll(rCnt, rOut);
-  args.updateFuncFrame(frame);
+  args.assign_all(reg_cnt, reg_out);
+  args.update_func_frame(frame);
   frame.finalize();
 
   // --- Function prolog ---
-  a.emitProlog(frame);
-  a.emitArgsAssignment(frame, args);
+  a.emit_prolog(frame);
+  a.emit_args_assignment(frame, args);
 
   // --- Benchmark prolog ---
-  a.mov(mOut, rOut);
-  beforeBody(a);
+  a.mov(m_out, reg_out);
+  before_body(a);
 
   a.xor_(x86::eax, x86::eax);
   a.mfence();
   a.lfence();
   a.rdtsc();
-  a.mov(mCyclesLo, x86::eax);
-  a.mov(mCyclesHi, x86::edx);
+  a.mov(m_cycles_lo, x86::eax);
+  a.mov(m_cycles_hi, x86::edx);
 
   // --- Benchmark body ---
-  compileBody(a, rCnt);
+  compile_body(a, reg_cnt);
 
   // --- Benchmark epilog ---
-  if (x86Features().hasRDTSCP()) {
+  if (x86_features().has_rdtscp()) {
     a.rdtscp();
     a.lfence();
   }
@@ -90,19 +90,19 @@ BaseBench::Func BaseBench::compileFunc() {
     a.rdtsc();
   }
 
-  a.mov(rOut, mOut);
-  a.sub(x86::eax, mCyclesLo);
-  a.sbb(x86::edx, mCyclesHi);
+  a.mov(reg_out, m_out);
+  a.sub(x86::eax, m_cycles_lo);
+  a.sbb(x86::edx, m_cycles_hi);
 
-  a.mov(x86::ptr(rOut, 0), x86::eax);
-  a.mov(x86::ptr(rOut, 4), x86::edx);
+  a.mov(x86::ptr(reg_out, 0), x86::eax);
+  a.mov(x86::ptr(reg_out, 4), x86::edx);
 
   // --- Function epilog ---
-  afterBody(a);
-  a.emitEpilog(frame);
+  after_body(a);
+  a.emit_epilog(frame);
   code.detach(&a);
 
-  if (eh._err)
+  if (eh._err != Error::kOk)
     return nullptr;
 
   Func func;
@@ -110,7 +110,7 @@ BaseBench::Func BaseBench::compileFunc() {
   return func;
 }
 
-void BaseBench::releaseFunc(Func func) {
+void BaseBench::release_func(Func func) {
   _runtime.release(func);
 }
 

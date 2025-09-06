@@ -7,7 +7,7 @@ JSONBuilder::JSONBuilder(String* dst)
     _last(kTokenNone),
     _level(0) {}
 
-JSONBuilder& JSONBuilder::openArray() {
+JSONBuilder& JSONBuilder::open_array() {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -18,11 +18,11 @@ JSONBuilder& JSONBuilder::openArray() {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::closeArray(bool nl) {
+JSONBuilder& JSONBuilder::close_array(bool nl) {
   _level--;
   if (nl) {
     _dst->append('\n');
-    _dst->appendChars(' ', _level * 2);
+    _dst->append_chars(' ', _level * 2);
   }
 
   _dst->append(']');
@@ -31,7 +31,7 @@ JSONBuilder& JSONBuilder::closeArray(bool nl) {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::openObject() {
+JSONBuilder& JSONBuilder::open_object() {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -42,11 +42,11 @@ JSONBuilder& JSONBuilder::openObject() {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::closeObject(bool nl) {
+JSONBuilder& JSONBuilder::close_object(bool nl) {
   _level--;
   if (nl) {
     _dst->append('\n');
-    _dst->appendChars(' ', _level * 2);
+    _dst->append_chars(' ', _level * 2);
   }
 
   _dst->append('}');
@@ -54,8 +54,8 @@ JSONBuilder& JSONBuilder::closeObject(bool nl) {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addKey(const char* str) {
-  addString(str);
+JSONBuilder& JSONBuilder::add_key(const char* str) {
+  add_string(str);
 
   _dst->append(':');
   _last = kTokenNone;
@@ -63,7 +63,7 @@ JSONBuilder& JSONBuilder::addKey(const char* str) {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addBool(bool b) {
+JSONBuilder& JSONBuilder::add_bool(bool b) {
   if (_last == kTokenValue)
     _dst->append(',');
 
@@ -73,62 +73,62 @@ JSONBuilder& JSONBuilder::addBool(bool b) {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addInt(int64_t n) {
+JSONBuilder& JSONBuilder::add_int(int64_t n) {
   if (_last == kTokenValue)
     _dst->append(',');
 
-  _dst->appendInt(n);
+  _dst->append_int(n);
   _last = kTokenValue;
 
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addUInt(uint64_t n) {
+JSONBuilder& JSONBuilder::add_uint(uint64_t n) {
   if (_last == kTokenValue)
     _dst->append(',');
 
-  _dst->appendUInt(n);
+  _dst->append_uint(n);
   _last = kTokenValue;
 
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addDouble(double d) {
+JSONBuilder& JSONBuilder::add_double(double d) {
   if (_last == kTokenValue)
     _dst->append(',');
 
-  _dst->appendFormat("%g", d);
+  _dst->append_format("%g", d);
   _last = kTokenValue;
 
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addDoublef(const char* fmt, double d) {
+JSONBuilder& JSONBuilder::add_doublef(const char* fmt, double d) {
   if (_last == kTokenValue)
     _dst->append(',');
 
-  _dst->appendFormat(fmt, d);
+  _dst->append_format(fmt, d);
   _last = kTokenValue;
 
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addString(const char* str) {
+JSONBuilder& JSONBuilder::add_string(const char* str) {
   if (_last == kTokenValue)
     _dst->append(',');
 
-  _dst->appendFormat("\"%s\"", str);
+  _dst->append_format("\"%s\"", str);
   _last = kTokenValue;
 
   return *this;
 }
 
-JSONBuilder& JSONBuilder::addStringf(const char* fmt, ...) {
+JSONBuilder& JSONBuilder::add_stringf(const char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
 
   _dst->append('\"');
-  _dst->appendVFormat(fmt, ap);
+  _dst->append_vformat(fmt, ap);
   _dst->append('\"');
   _last = kTokenValue;
 
@@ -137,7 +137,7 @@ JSONBuilder& JSONBuilder::addStringf(const char* fmt, ...) {
   return *this;
 }
 
-JSONBuilder& JSONBuilder::alignTo(size_t n) {
+JSONBuilder& JSONBuilder::align_to(size_t n) {
   size_t i = _dst->size();
   const char* p = _dst->data();
 
@@ -147,17 +147,17 @@ JSONBuilder& JSONBuilder::alignTo(size_t n) {
 
   size_t cur = _dst->size() - i;
   if (cur < n)
-    _dst->appendChars(' ', n - cur);
+    _dst->append_chars(' ', n - cur);
 
   return *this;
 }
 
-JSONBuilder& JSONBuilder::beforeRecord() {
+JSONBuilder& JSONBuilder::before_record() {
   if (_last == kTokenValue)
     _dst->append(',');
 
   _dst->append('\n');
-  _dst->appendChars(' ', _level * 2);
+  _dst->append_chars(' ', _level * 2);
   _last = kTokenNone;
 
   return *this;

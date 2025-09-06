@@ -13,12 +13,12 @@ App::App(int argc, char* argv[])
 
 App::~App() {}
 
-void App::parseArguments() {
-  if (_cmd.hasKey("--help")) _help = true;
-  if (_cmd.hasKey("--dump")) _dump = true;
-  if (_cmd.hasKey("--quiet")) _verbose = false;
-  if (_cmd.hasKey("--estimate")) _estimate = true;
-  if (_cmd.hasKey("--no-rounding")) _round = false;
+void App::parse_arguments() {
+  if (_cmd.has_key("--help")) _help = true;
+  if (_cmd.has_key("--dump")) _dump = true;
+  if (_cmd.has_key("--quiet")) _verbose = false;
+  if (_cmd.has_key("--estimate")) _estimate = true;
+  if (_cmd.has_key("--no-rounding")) _round = false;
 
   if (help() || verbose()) {
     printf("CULT v%u.%u.%u [Using AsmJit v%u.%u.%u]\n",
@@ -44,10 +44,10 @@ void App::parseArguments() {
     exit(0);
   }
 
-  const char* instruction = _cmd.valueOf("--instruction");
+  const char* instruction = _cmd.value_of("--instruction");
   if (instruction) {
-    _singleInstId = asmjit::InstAPI::stringToInstId(Arch::kHost, instruction, strlen(instruction));
-    if (_singleInstId == 0) {
+    _single_inst_id = asmjit::InstAPI::string_to_inst_id(Arch::kHost, instruction, strlen(instruction));
+    if (_single_inst_id == 0) {
       printf("The required instruction '%s' was not found in the database\n", instruction);
       exit(1);
     }
@@ -55,35 +55,33 @@ void App::parseArguments() {
 }
 
 int App::run() {
-  SchedUtils::setAffinity(0);
+  SchedUtils::set_affinity(0);
 
-  _json.openObject();
-  _json.beforeRecord()
-       .addKey("cult")
-       .openObject()
-         .beforeRecord()
-         .addKey("version").addStringf("%d.%d.%d", CULT_VERSION_MAJOR, CULT_VERSION_MINOR, CULT_VERSION_MICRO)
-       .closeObject(true);
+  _json.open_object();
+  _json.before_record()
+       .add_key("cult")
+       .open_object()
+         .before_record()
+         .add_key("version").add_stringf("%d.%d.%d", CULT_VERSION_MAJOR, CULT_VERSION_MINOR, CULT_VERSION_MICRO)
+       .close_object(true);
 
   {
-    CpuDetect cpuDetect(this);
-    cpuDetect.run();
+    CpuDetect cpu_detect(this);
+    cpu_detect.run();
   }
 
   {
-    InstBench instBench(this);
-    instBench.run();
+    InstBench inst_bench(this);
+    inst_bench.run();
   }
 
-  _json.nl()
-       .closeObject()
-       .nl();
+  _json.nl().close_object().nl();
 
-  const char* outputFileName = _cmd.valueOf("--output");
-  if (outputFileName) {
-    FILE* file = fopen(outputFileName, "wb");
+  const char* output_file_name = _cmd.value_of("--output");
+  if (output_file_name) {
+    FILE* file = fopen(output_file_name, "wb");
     if (!file) {
-      printf("Couldn't open output file: %s\n", outputFileName);
+      printf("Couldn't open output file: %s\n", output_file_name);
     }
     else {
       fwrite(_output.data(), _output.size(), 1, file);
@@ -100,6 +98,6 @@ int App::run() {
 
 int main(int argc, char* argv[]) {
   cult::App app(argc, argv);
-  app.parseArguments();
+  app.parse_arguments();
   return app.run();
 }

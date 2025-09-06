@@ -73,11 +73,11 @@ struct InstSpec {
     return InstSpec{{Op(o0), Op(o1), Op(o2), Op(o3), Op(o4), Op(o5)}};
   }
 
-  static inline bool isMemOp(uint32_t op) {
+  static inline bool is_mem_op(uint32_t op) {
     return op >= kOpMem8 && op <= kOpMem512;
   }
 
-  static inline bool isVmOp(uint32_t op) {
+  static inline bool is_vm_op(uint32_t op) {
     return op >= kOpVm32x && op <= kOpVm64z;
   }
 
@@ -95,11 +95,11 @@ struct InstSpec {
     return _flags == other._flags;
   }
 
-  inline bool isValid() const {
+  inline bool is_valid() const {
     return _opData[0] != 0;
   }
 
-  inline bool isLeaScale() const noexcept { return (_flags & kLeaScale) != 0; }
+  inline bool is_lea_scale() const noexcept { return (_flags & kLeaScale) != 0; }
 
   inline uint32_t count() const {
     uint32_t i = 0;
@@ -118,7 +118,7 @@ struct InstSpec {
     _opData[index] = Op(v);
   }
 
-  inline uint32_t memOp() const {
+  inline uint32_t mem_op() const {
     uint32_t n = count();
     for (uint32_t i = 0; i < n; i++)
       if (_opData[i] >= kOpMem8 && _opData[i] <= kOpVm64z)
@@ -126,11 +126,11 @@ struct InstSpec {
     return kOpNone;
   }
 
-  static inline bool isImplicitOp(uint32_t op) {
+  static inline bool is_implicit_op(uint32_t op) {
     return (op >= kOpAl && op <= kOpRdx) || op == kOpXmm0;
   }
 
-  inline InstSpec leaScale() const noexcept {
+  inline InstSpec lea_scale() const noexcept {
     InstSpec out(*this);
     out._flags = uint8_t(out._flags | kLeaScale);
     return out;
@@ -151,68 +151,68 @@ public:
   InstBench(App* app);
   virtual ~InstBench();
 
-  void classify(std::vector<InstSpec>& dst, InstId instId);
-  double testInstruction(InstId instId, InstSpec instSpec, uint32_t parallel, uint32_t memAlignment, bool overheadOnly);
+  void classify(std::vector<InstSpec>& dst, InstId inst_id);
+  double test_instruction(InstId inst_id, InstSpec inst_spec, uint32_t parallel, uint32_t mem_alignment, bool overhead_only);
 
-  inline bool is64Bit() const {
-    return Environment::is64Bit(Arch::kHost);
+  inline bool is_64bit() const {
+    return Environment::is_64bit(Arch::kHost);
   }
 
-  bool isImplicit(InstId instId);
+  bool is_implicit(InstId inst_id);
 
-  uint32_t numIterByInstId(InstId instId) const;
+  uint32_t num_iter_by_inst_id(InstId inst_id) const;
 
-  inline bool isMMX(InstId instId, InstSpec spec) {
+  inline bool is_mmx(InstId inst_id, InstSpec spec) {
     return spec.get(0) == InstSpec::kOpMm || spec.get(1) == InstSpec::kOpMm;
   }
 
-  inline bool isVec(InstId instId, InstSpec spec) {
-    const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
-    return inst.isVec() && !isMMX(instId, spec);
+  inline bool is_vec(InstId inst_id, InstSpec spec) {
+    const x86::InstDB::InstInfo& inst = x86::InstDB::inst_info_by_id(inst_id);
+    return inst.is_vec() && !is_mmx(inst_id, spec);
   }
 
-  inline bool isSSE(InstId instId, InstSpec spec) {
-    const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
-    return inst.isVec() && !isMMX(instId, spec) && !inst.isVex() && !inst.isEvex();
+  inline bool is_sse(InstId inst_id, InstSpec spec) {
+    const x86::InstDB::InstInfo& inst = x86::InstDB::inst_info_by_id(inst_id);
+    return inst.is_vec() && !is_mmx(inst_id, spec) && !inst.is_vex() && !inst.is_evex();
   }
 
-  inline bool isAVX(InstId instId, InstSpec spec) {
-    const x86::InstDB::InstInfo& inst = x86::InstDB::infoById(instId);
-    return inst.isVec() && (inst.isVex() || inst.isEvex());
+  inline bool is_avx(InstId inst_id, InstSpec spec) {
+    const x86::InstDB::InstInfo& inst = x86::InstDB::inst_info_by_id(inst_id);
+    return inst.is_vec() && (inst.is_vex() || inst.is_evex());
   }
 
-  inline bool canRun(InstId instId) const {
-    return _canRun(BaseInst(instId), nullptr, 0);
+  inline bool can_run(InstId inst_id) const {
+    return _can_run(BaseInst(inst_id), nullptr, 0);
   }
 
   template<typename... ArgsT>
-  inline bool canRun(InstId instId, ArgsT&&... args) const {
+  inline bool can_run(InstId inst_id, ArgsT&&... args) const {
     Operand_ ops[] = { args... };
-    return _canRun(BaseInst(instId), ops, sizeof...(args));
+    return _can_run(BaseInst(inst_id), ops, sizeof...(args));
   }
 
-  bool _canRun(const BaseInst& inst, const Operand_* operands, uint32_t count) const;
+  bool _can_run(const BaseInst& inst, const Operand_* operands, uint32_t count) const;
 
-  const void* ensureGatherData(uint32_t elementSize, bool isAligned);
-  void freeGatherData(uint32_t elementSize);
+  const void* ensure_gather_data(uint32_t element_size, bool is_aligned);
+  void free_gather_data(uint32_t element_size);
 
-  uint32_t localStackSize() const override;
+  uint32_t local_stack_size() const override;
   void run() override;
-  void beforeBody(x86::Assembler& a) override;
-  void compileBody(x86::Assembler& a, x86::Gp rCnt) override;
-  void afterBody(x86::Assembler& a) override;
+  void before_body(x86::Assembler& a) override;
+  void compile_body(x86::Assembler& a, x86::Gp reg_cnt) override;
+  void after_body(x86::Assembler& a) override;
 
-  void fillMemory32(x86::Assembler& a, x86::Gp baseAddress, uint32_t value, uint32_t n);
+  void fill_memory_u32(x86::Assembler& a, x86::Gp base_address, uint32_t value, uint32_t n);
 
-  uint32_t _instId {};
-  InstSpec _instSpec {};
-  uint32_t _nUnroll {};
-  uint32_t _nParallel {};
-  uint32_t _memAlignment {};
-  bool _overheadOnly {};
+  uint32_t _inst_id {};
+  InstSpec _inst_spec {};
+  uint32_t _n_unroll {};
+  uint32_t _n_parallel {};
+  uint32_t _mem_alignment {};
+  bool _overhead_only {};
 
-  void* _gatherData[2];
-  uint32_t _gatherDataSize;
+  void* _gather_data[2];
+  uint32_t _gather_data_size;
 };
 
 } // {cult} namespace

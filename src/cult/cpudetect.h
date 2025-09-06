@@ -25,14 +25,14 @@ public:
   App* _app;
   std::vector<CpuUtils::CpuidEntry> _entries;
 
-  uint32_t _modelId;
-  uint32_t _familyId;
-  uint32_t _steppingId;
+  uint32_t _model_id;
+  uint32_t _family_id;
+  uint32_t _stepping_id;
 
-  char _vendorString[16];
-  char _vendorName[16];
-  char _brandString[64];
-  char _uarchName[32];
+  char _vendor_string[16];
+  char _vendor_name[16];
+  char _brand_string[64];
+  char _uarch_name[32];
 };
 
 } // {cult} namespace

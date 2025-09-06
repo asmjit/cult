@@ -16,23 +16,23 @@
 namespace cult {
 namespace CpuUtils {
 
-void cpuid_query(CpuidOut* result, uint32_t inEax, uint32_t inEcx) {
+void cpuid_query(CpuidOut* result, uint32_t in_eax, uint32_t in_ecx) {
 #if defined(_MSC_VER)
-  __cpuidex(reinterpret_cast<int*>(result), inEax, inEcx);
+  __cpuidex(reinterpret_cast<int*>(result), in_eax, in_ecx);
 #elif ASMJIT_ARCH_X86 == 32 && defined(__GNUC__)
   __asm__ __volatile__(
     "mov %%ebx, %%edi\n"
     "cpuid\n"
     "xchg %%edi, %%ebx\n"
       : "=a"(result->eax), "=D"(result->ebx), "=c"(result->ecx), "=d"(result->edx)
-      : "a"(inEax), "c"(inEcx));
+      : "a"(in_eax), "c"(in_ecx));
 #elif ASMJIT_ARCH_X86 == 64 && defined(__GNUC__)
   __asm__ __volatile__(
     "mov %%rbx, %%rdi\n"
     "cpuid\n"
     "xchg %%rdi, %%rbx\n"
       : "=a"(result->eax), "=D"(result->ebx), "=c"(result->ecx), "=d"(result->edx)
-      : "a"(inEax), "c"(inEcx));
+      : "a"(in_eax), "c"(in_ecx));
 #else
   #error "[cult] cpuid_query() - Unsupported compiler"
 #endif
@@ -87,14 +87,14 @@ static uint64_t tsc_calibration_sample() {
   constexpr uint64_t kDelayNS = 20000;
 
   _mm_lfence();
-  uint64_t  nsbefore = get_clock_monotonic();
+  uint64_t nsbefore = get_clock_monotonic();
   uint64_t tscbefore = __rdtsc();
 
   while (nsbefore + kDelayNS > get_clock_monotonic()) {
     continue;
   }
 
-  uint64_t  nsafter = get_clock_monotonic();
+  uint64_t nsafter = get_clock_monotonic();
   uint64_t tscafter = __rdtsc();
 
   return (tscafter - tscbefore) * 1000000000u / (nsafter - nsbefore);

@@ -6,7 +6,7 @@
 namespace cult {
 namespace SchedUtils {
 
-void setAffinity(uint32_t cpu);
+void set_affinity(uint32_t cpu);
 
 } // SchedUtils namespace
 } // {cult} namespace

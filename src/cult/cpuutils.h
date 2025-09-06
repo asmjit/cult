@@ -12,7 +12,7 @@ struct CpuidIn {
 
 struct CpuidOut {
   // CPU returns all zeros if the CPUID call was invalid.
-  inline bool isValid() const { return (eax | ebx | ecx | edx) != 0; }
+  inline bool is_valid() const { return (eax | ebx | ecx | edx) != 0; }
 
   uint32_t eax, ebx, ecx, edx;
 };
@@ -22,7 +22,7 @@ struct CpuidEntry {
   CpuidOut out;
 };
 
-void cpuid_query(CpuidOut* result, uint32_t inEax, uint32_t inEcx = 0);
+void cpuid_query(CpuidOut* result, uint32_t in_eax, uint32_t in_ecx = 0);
 
 uint64_t get_tsc_freq();
 uint64_t get_tsc_freq_always_calibrated();

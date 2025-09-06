@@ -15,16 +15,16 @@ public:
     : argc(argc),
       argv(argv) {}
 
-  bool hasKey(const char* key) const {
+  bool has_key(const char* key) const {
     for (int i = 0; i < argc; i++)
       if (strcmp(argv[i], key) == 0)
         return true;
     return false;
   }
 
-  const char* valueOf(const char* key) const {
-    size_t keySize = strlen(key);
-    size_t argSize = 0;
+  const char* value_of(const char* key) const {
+    size_t key_size = strlen(key);
+    size_t arg_size = 0;
 
     const char* arg = NULL;
     for (int i = 0; i <= argc; i++) {
@@ -32,15 +32,15 @@ public:
         return NULL;
 
       arg = argv[i];
-      argSize = strlen(arg);
-      if (argSize >= keySize && ::memcmp(arg, key, keySize) == 0)
+      arg_size = strlen(arg);
+      if (arg_size >= key_size && ::memcmp(arg, key, key_size) == 0)
         break;
     }
 
-    if (argSize > keySize && arg[keySize] == '=')
-      return arg + keySize + 1;
+    if (arg_size > key_size && arg[key_size] == '=')
+      return arg + key_size + 1;
     else
-      return arg + keySize;
+      return arg + key_size;
   }
 
   int argc;
@@ -52,13 +52,13 @@ public:
   App(int argc, char* argv[]);
   ~App();
 
-  inline const CmdLine& cmdLine() const { return _cmd; }
+  inline const CmdLine& cmd_line() const { return _cmd; }
   inline bool help() const { return _help; }
   inline bool verbose() const { return _verbose; }
   inline bool dump() const { return _dump; }
   inline JSONBuilder& json() { return _json; }
 
-  void parseArguments();
+  void parse_arguments();
   int run();
 
   CmdLine _cmd;
@@ -67,7 +67,7 @@ public:
   bool _round = true;
   bool _verbose = true;
   bool _estimate = false;
-  uint32_t _singleInstId = 0;
+  uint32_t _single_inst_id = 0;
 
   String _output;
   JSONBuilder _json;
